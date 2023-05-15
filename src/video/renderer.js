@@ -1,56 +1,89 @@
 import Color from "./../math/color.js";
 import Matrix3d from "./../math/matrix3.js";
-import { createCanvas, renderer } from "./video.js";
+import { createCanvas } from "./video.js";
 import * as event from "./../system/event.js";
-import device from "./../system/device.js";
+import { platform } from "../system/device.js";
 import { setPrefixed } from "./../utils/agent.js";
-import { Texture } from "./texture.js";
-import Rect from "./../shapes/rectangle.js";
-import Ellipse from "./../shapes/ellipse.js";
-import Polygon from "./../shapes/poly.js";
-import Line from "./../shapes/line.js";
+import Rect from "./../geometries/rectangle.js";
+import RoundRect from "./../geometries/roundrect.js";
+import Ellipse from "./../geometries/ellipse.js";
+import Polygon from "./../geometries/poly.js";
+import Line from "./../geometries/line.js";
 import Bounds from "./../physics/bounds.js";
+import Path2D from "./../geometries/path2d.js";
+import Vector2d from "../math/vector2.js";
+import Point from "../geometries/point.js";
 
 /**
  * @classdesc
  * a base renderer object
- * @class Renderer
- * @memberOf me
- * @constructor
- * @param {Object} options The renderer parameters
- * @param {Number} options.width The width of the canvas without scaling
- * @param {Number} options.height The height of the canvas without scaling
- * @param {HTMLCanvasElement} [options.canvas] The html canvas to draw to on screen
- * @param {Boolean} [options.doubleBuffering=false] Whether to enable double buffering
- * @param {Boolean} [options.antiAlias=false] Whether to enable anti-aliasing, use false (default) for a pixelated effect.
- * @param {Boolean} [options.failIfMajorPerformanceCaveat=true] If true, the renderer will switch to CANVAS mode if the performances of a WebGL context would be dramatically lower than that of a native application making equivalent OpenGL calls.
- * @param {Boolean} [options.transparent=false] Whether to enable transparency on the canvas (performance hit when enabled)
- * @param {Boolean} [options.blendMode="normal"] the default blend mode to use ("normal", "multiply")
- * @param {Boolean} [options.subPixel=false] Whether to enable subpixel rendering (performance hit when enabled)
- * @param {Boolean} [options.verbose=false] Enable the verbose mode that provides additional details as to what the renderer is doing
- * @param {Number} [options.zoomX=width] The actual width of the canvas with scaling applied
- * @param {Number} [options.zoomY=height] The actual height of the canvas with scaling applied
  */
-class Renderer {
-
+ export default class Renderer {
+    /**
+     * @param {object} options - The renderer parameters
+     * @param {number} options.width - The width of the canvas without scaling
+     * @param {number} options.height - The height of the canvas without scaling
+     * @param {HTMLCanvasElement} [options.canvas] - The html canvas to draw to on screen
+     * @param {boolean} [options.antiAlias=false] - Whether to enable anti-aliasing, use false (default) for a pixelated effect.
+     * @param {boolean} [options.failIfMajorPerformanceCaveat=true] - If true, the renderer will switch to CANVAS mode if the performances of a WebGL context would be dramatically lower than that of a native application making equivalent OpenGL calls.
+     * @param {boolean} [options.transparent=false] - Whether to enable transparency on the canvas
+     * @param {boolean} [options.premultipliedAlpha=true] - in WebGL, whether the renderer will assume that colors have premultiplied alpha when canvas transparency is enabled
+     * @param {boolean} [options.blendMode="normal"] - the default blend mode to use ("normal", "multiply")
+     * @param {boolean} [options.depthBuffer="sorting"] - ~Experimental~ the default method to sort object on the z axis in WebGL ("sorting", "z-buffer")
+     * @param {boolean} [options.subPixel=false] - Whether to enable subpixel rendering (performance hit when enabled)
+     * @param {boolean} [options.verbose=false] - Enable the verbose mode that provides additional details as to what the renderer is doing
+     * @param {number} [options.zoomX=width] - The actual width of the canvas with scaling applied
+     * @param {number} [options.zoomY=height] - The actual height of the canvas with scaling applied
+     */
     constructor(options) {
         /**
          * The given constructor options
          * @public
-         * @name settings
-         * @memberOf me.Renderer#
-         * @enum {Object}
+         * @type {object}
          */
         this.settings = options;
 
         /**
+         * the requested video size ratio
+         * @public
+         * @type {Number}
+         */
+        this.designRatio = this.settings.width / this.settings.height;
+
+        /**
+         * the scaling ratio to be applied to the main canvas
+         * @type {Vector2d}
+         * @default <1,1>
+         */
+        this.scaleRatio = new Vector2d(this.settings.scale, this.settings.scale);
+
+        /**
          * true if the current rendering context is valid
-         * @name isContextValid
-         * @memberOf me.Renderer
          * @default true
-         * type {Boolean}
+         * @type {boolean}
          */
         this.isContextValid = true;
+
+        /**
+         * the default method to sort object ("sorting", "z-buffer")
+         * @type {string}
+         * @default "sorting"
+         */
+        this.depthTest = "sorting";
+
+
+        /**
+         * The Path2D instance used by the renderer to draw primitives
+         * @type {Path2D}
+         */
+        this.path2D = new Path2D();
+
+        /**
+         * The renderer type : Canvas, WebGL, etc...
+         * (override this property with a specific value when implementing a custom renderer)
+         * @type {string}
+         */
+        this.type = "Generic";
 
         /**
          * @ignore
@@ -60,24 +93,25 @@ class Renderer {
         /**
          * @ignore
          */
-        this.currentBlendMode = "normal";
+        this.maskLevel = 0;
+
+        /**
+         * @ignore
+         */
+        this.currentBlendMode = "none";
 
         // create the main screen canvas
-        if (device.ejecta === true) {
+        if (platform.ejecta === true) {
             // a main canvas is already automatically created by Ejecta
             this.canvas = document.getElementById("canvas");
-        } else if (typeof window.canvas !== "undefined") {
+        } else if (typeof globalThis.canvas !== "undefined") {
             // a global canvas is available, e.g. webapp adapter for wechat
-            this.canvas = window.canvas;
+            this.canvas = globalThis.canvas;
         } else if (typeof this.settings.canvas !== "undefined") {
             this.canvas = this.settings.canvas;
         } else {
-            this.canvas = createCanvas(this.settings.zoomX, this.settings.zoomY);
+            this.canvas = createCanvas(this.settings.width, this.settings.height);
         }
-
-        // canvas object and context
-        this.backBufferCanvas = this.canvas;
-        this.context = null;
 
         // global color
         this.currentColor = new Color(0, 0, 0, 1.0);
@@ -90,30 +124,20 @@ class Renderer {
 
         // default uvOffset
         this.uvOffset = 0;
-
-        this.Texture = Texture;
-
-        // reset the instantiated renderer on game reset
-        event.subscribe(event.GAME_RESET, function () {
-            renderer.reset();
-        });
-
-        return this;
     }
 
     /**
      * prepare the framebuffer for drawing a new frame
-     * @name clear
-     * @memberOf me.Renderer.prototype
-     * @function
      */
     clear() {}
 
     /**
+     * render the main framebuffer on screen
+     */
+    flush() {}
+
+    /**
      * Reset context state
-     * @name reset
-     * @memberOf me.Renderer.prototype
-     * @function
      */
     reset() {
         this.resetTransform();
@@ -123,50 +147,31 @@ class Renderer {
         this.cache.clear();
         this.currentScissor[0] = 0;
         this.currentScissor[1] = 0;
-        this.currentScissor[2] = this.backBufferCanvas.width;
-        this.currentScissor[3] = this.backBufferCanvas.height;
+        this.currentScissor[2] = this.getCanvas().width;
+        this.currentScissor[3] = this.getCanvas().height;
+        this.clearMask();
     }
 
     /**
-     * return a reference to the system canvas
-     * @name getCanvas
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @return {HTMLCanvasElement}
+     * return a reference to the canvas which this renderer draws to
+     * @returns {HTMLCanvasElement}
      */
     getCanvas() {
-        return this.backBufferCanvas;
-    }
-
-    /**
-     * return a reference to the screen canvas
-     * @name getScreenCanvas
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @return {HTMLCanvasElement}
-     */
-    getScreenCanvas() {
         return this.canvas;
     }
 
+
     /**
-     * return a reference to the screen canvas corresponding 2d Context<br>
-     * (will return buffered context if double buffering is enabled, or a reference to the Screen Context)
-     * @name getScreenContext
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @return {Context2d}
+     * return a reference to this renderer canvas corresponding Context
+     * @returns {CanvasRenderingContext2D|WebGLRenderingContext}
      */
-    getScreenContext() {
+    getContext() {
         return this.context;
     }
 
     /**
      * returns the current blend mode for this renderer
-     * @name getBlendMode
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @return {String} blend mode
+     * @returns {string} blend mode
      */
     getBlendMode() {
         return this.currentBlendMode;
@@ -175,22 +180,19 @@ class Renderer {
     /**
      * Returns the 2D Context object of the given Canvas<br>
      * Also configures anti-aliasing and blend modes based on constructor options.
-     * @name getContext2d
-     * @memberOf me.Renderer.prototype
-     * @function
      * @param {HTMLCanvasElement} canvas
-     * @param {Boolean} [transparent=true] use false to disable transparency
-     * @return {Context2d}
+     * @param {boolean} [transparent=true] - use false to disable transparency
+     * @returns {CanvasRenderingContext2D}
      */
-    getContext2d(c, transparent) {
-        if (typeof c === "undefined" || c === null) {
+    getContext2d(canvas, transparent) {
+        if (typeof canvas === "undefined" || canvas === null) {
             throw new Error(
                 "You must pass a canvas element in order to create " +
                 "a 2d context"
             );
         }
 
-        if (typeof c.getContext === "undefined") {
+        if (typeof canvas.getContext === "undefined") {
             throw new Error(
                 "Your browser does not support HTML5 canvas."
             );
@@ -200,12 +202,12 @@ class Renderer {
             transparent = true;
         }
 
-        var _context = c.getContext("2d", {
+        let _context = canvas.getContext("2d", {
                 "alpha" : transparent
         });
 
         if (!_context.canvas) {
-            _context.canvas = c;
+            _context.canvas = canvas;
         }
         this.setAntiAlias(_context, this.settings.antiAlias);
         return _context;
@@ -213,32 +215,23 @@ class Renderer {
 
     /**
      * return the width of the system Canvas
-     * @name getWidth
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @return {Number}
+     * @returns {number}
      */
     getWidth() {
-        return this.backBufferCanvas.width;
+        return this.getCanvas().width;
     }
 
     /**
      * return the height of the system Canvas
-     * @name getHeight
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @return {Number}
+     * @returns {number} height of the system Canvas
      */
     getHeight() {
-        return this.backBufferCanvas.height;
+        return this.getCanvas().height;
     }
 
     /**
      * get the current fill & stroke style color.
-     * @name getColor
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {me.Color} current global color
+     * @returns {Color} current global color
      */
     getColor() {
         return this.currentColor;
@@ -246,10 +239,7 @@ class Renderer {
 
     /**
      * return the current global alpha
-     * @name globalAlpha
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @return {Number}
+     * @returns {number}
      */
     globalAlpha() {
         return this.currentColor.glArray[3];
@@ -257,11 +247,8 @@ class Renderer {
 
     /**
      * check if the given rect or bounds overlaps with the renderer screen coordinates
-     * @name overlaps
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param  {me.Rect|me.Bounds} bounds
-     * @return {boolean} true if overlaps
+     * @param {Rect|Bounds} bounds
+     * @returns {boolean} true if overlaps
      */
     overlaps(bounds) {
         return (
@@ -273,35 +260,30 @@ class Renderer {
 
     /**
      * resizes the system canvas
-     * @name resize
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {Number} width new width of the canvas
-     * @param {Number} height new height of the canvas
+     * @param {number} width - new width of the canvas
+     * @param {number} height - new height of the canvas
      */
     resize(width, height) {
-        if (width !== this.backBufferCanvas.width || height !== this.backBufferCanvas.height) {
-            this.canvas.width = this.backBufferCanvas.width = width;
-            this.canvas.height = this.backBufferCanvas.height = height;
+        let canvas = this.getCanvas();
+        if (width !== canvas.width || height !== canvas.height) {
+            canvas.width = width;
+            canvas.height = height;
             this.currentScissor[0] = 0;
             this.currentScissor[1] = 0;
             this.currentScissor[2] = width;
             this.currentScissor[3] = height;
             // publish the corresponding event
-            event.publish(event.CANVAS_ONRESIZE, [ width, height ]);
+            event.emit(event.CANVAS_ONRESIZE, width, height);
         }
     }
 
     /**
      * enable/disable image smoothing (scaling interpolation) for the given context
-     * @name setAntiAlias
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {Context2d} context
-     * @param {Boolean} [enable=false]
+     * @param {CanvasRenderingContext2D} context
+     * @param {boolean} [enable=false]
      */
     setAntiAlias(context, enable) {
-        var canvas = context.canvas;
+        let canvas = context.canvas;
 
         // enable/disable antialis on the given Context2d object
         setPrefixed("imageSmoothingEnabled", enable === true, context);
@@ -324,10 +306,7 @@ class Renderer {
 
     /**
      * set/change the current projection matrix (WebGL only)
-     * @name setProjection
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {me.Matrix3d} matrix
+     * @param {Matrix3d} matrix
      */
     setProjection(matrix) {
         this.projectionMatrix.copy(matrix);
@@ -335,17 +314,23 @@ class Renderer {
 
     /**
      * stroke the given shape
-     * @name stroke
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {me.Rect|me.Polygon|me.Line|me.Ellipse} shape a shape object to stroke
+     * @param {Rect|RoundRect|Polygon|Line|Ellipse} shape - a shape object to stroke
+     * @param {boolean} [fill=false] - fill the shape with the current color if true
      */
     stroke(shape, fill) {
+        if (shape instanceof RoundRect) {
+            this.strokeRoundRect(shape.left, shape.top, shape.width, shape.height, shape.radius, fill);
+            return;
+        }
         if (shape instanceof Rect || shape instanceof Bounds) {
             this.strokeRect(shape.left, shape.top, shape.width, shape.height, fill);
-        } else if (shape instanceof Line || shape instanceof Polygon) {
+            return;
+        }
+        if (shape instanceof Line || shape instanceof Polygon) {
             this.strokePolygon(shape, fill);
-        } else if (shape instanceof Ellipse) {
+            return;
+        }
+        if (shape instanceof Ellipse) {
             this.strokeEllipse(
                 shape.pos.x,
                 shape.pos.y,
@@ -353,22 +338,33 @@ class Renderer {
                 shape.radiusV.y,
                 fill
             );
+            return;
         }
+        if (shape instanceof Point) {
+            this.strokePoint(shape.x, shape.y);
+            return;
+        }
+        throw new Error("Invalid geometry for fill/stroke");
+    }
+
+    /**
+     * fill the given shape
+     * @param {Rect|RoundRect|Polygon|Line|Ellipse} shape - a shape object to fill
+     */
+    fill(shape) {
+        this.stroke(shape, true);
     }
 
     /**
      * tint the given image or canvas using the given color
-     * @name tint
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {HTMLImageElement|HTMLCanvasElement|OffscreenCanvas} image the source image to be tinted
-     * @param {me.Color|String} color the color that will be used to tint the image
-     * @param {String} [mode="multiply"] the composition mode used to tint the image
-     * @return {HTMLCanvasElement|OffscreenCanvas} a new canvas element representing the tinted image
+     * @param {HTMLImageElement|HTMLCanvasElement|OffscreenCanvas} src - the source image to be tinted
+     * @param {Color|string} color - the color that will be used to tint the image
+     * @param {string} [mode="multiply"] - the composition mode used to tint the image
+     * @returns {HTMLCanvasElement|OffscreenCanvas} a new canvas element representing the tinted image
      */
     tint(src, color, mode) {
-        var canvas = createCanvas(src.width, src.height, true);
-        var context = this.getContext2d(canvas);
+        let canvas = createCanvas(src.width, src.height, true);
+        let context = this.getContext2d(canvas);
 
         context.save();
 
@@ -386,54 +382,35 @@ class Renderer {
     }
 
     /**
-     * fill the given shape
-     * @name fill
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {me.Rect|me.Polygon|me.Line|me.Ellipse} shape a shape object to fill
-     */
-    fill(shape) {
-        this.stroke(shape, true);
-    }
-
-    /**
      * A mask limits rendering elements to the shape and position of the given mask object.
      * So, if the renderable is larger than the mask, only the intersecting part of the renderable will be visible.
      * Mask are not preserved through renderer context save and restore.
-     * @name setMask
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {me.Rect|me.Polygon|me.Line|me.Ellipse} [mask] the shape defining the mask to be applied
+     * @param {Rect|RoundRect|Polygon|Line|Ellipse} [mask] - the shape defining the mask to be applied
+     * @param {boolean} [invert=false] - either the given shape should define what is visible (default) or the opposite
      */
+    // eslint-disable-next-line no-unused-vars
     setMask(mask) {}
 
     /**
      * disable (remove) the rendering mask set through setMask.
-     * @name clearMask
-     * @see me.Renderer#setMask
-     * @memberOf me.Renderer.prototype
-     * @function
+     * @see Renderer#setMask
      */
     clearMask() {}
 
     /**
      * set a coloring tint for sprite based renderables
-     * @name setTint
-     * @memberOf me.Renderer.prototype
-     * @function
-     * @param {me.Color} [tint] the tint color
+     * @param {Color} tint - the tint color
+     * @param {number} [alpha] - an alpha value to be applied to the tint
      */
-    setTint(tint) {
+    setTint(tint, alpha = tint.alpha) {
         // global tint color
         this.currentTint.copy(tint);
+        this.currentTint.alpha *= alpha;
     }
 
     /**
      * clear the rendering tint set through setTint.
-     * @name clearTint
-     * @see me.Renderer#setTint
-     * @memberOf me.Renderer.prototype
-     * @function
+     * @see Renderer#setTint
      */
     clearTint() {
         // reset to default
@@ -441,10 +418,60 @@ class Renderer {
     }
 
     /**
-     * @ignore
+     * creates a Blob object representing the last rendered frame
+     * @param {Object} [options] - An object with the following properties:
+     * @param {String} [options.type="image/png"] - A string indicating the image format
+     * @param {Number} [options.quality] - A Number between 0 and 1 indicating the image quality to be used when creating images using file formats that support lossy compression (such as image/jpeg or image/webp). A user agent will use its default quality value if this option is not specified, or if the number is outside the allowed range.
+     * @return {Promise} A Promise returning a Blob object representing the last rendered frame
+     * @example
+     * renderer.convertToBlob().then((blob) => console.log(blob));
      */
-    drawFont(/*bounds*/) {}
+    toBlob(options) {
+        return new Promise((resolve) => {
+            event.once(event.GAME_AFTER_DRAW, () => {
+                this.canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, options ? options.type : undefined, options ? options.quality : undefined);
+            });
+        });
+    }
 
-};
+    /**
+     * creates an ImageBitmap object of the last frame rendered
+     * (not supported by standard Canvas)
+     * @param {Object} [options] - An object with the following properties:
+     * @param {String} [options.type="image/png"] - A string indicating the image format
+     * @param {Number} [options.quality] - A Number between 0 and 1 indicating the image quality to be used when creating images using file formats that support lossy compression (such as image/jpeg or image/webp). A user agent will use its default quality value if this option is not specified, or if the number is outside the allowed range.
+     * @return {Promise} A Promise returning an ImageBitmap.
+     * @example
+     * renderer.transferToImageBitmap().then((image) => console.log(image));
+     */
+    toImageBitmap(options) {
+        return new Promise((resolve) => {
+            event.once(event.GAME_AFTER_DRAW, () => {
+                let image = new Image();
+                image.src = this.canvas.toDataURL(options);
+                image.onload = () => {
+                    createImageBitmap(image).then((bitmap) => resolve(bitmap));
+                };
+            });
+        });
+    }
 
-export default Renderer;
+    /**
+     * returns a data URL containing a representation of the last frame rendered
+     * @param {Object} [options] - An object with the following properties:
+     * @param {String} [options.type="image/png"] - A string indicating the image format
+     * @param {Number} [options.quality] - A Number between 0 and 1 indicating the image quality to be used when creating images using file formats that support lossy compression (such as image/jpeg or image/webp). A user agent will use its default quality value if this option is not specified, or if the number is outside the allowed range.
+     * @return {Promise} A Promise returning a string containing the requested data URL.
+     * @example
+     * renderer.toDataURL().then((dataURL) => console.log(dataURL));
+     */
+    toDataURL(options) {
+        return new Promise((resolve) => {
+            event.once(event.GAME_AFTER_DRAW, () => {
+                resolve(this.canvas.toDataURL(options));
+            });
+        });
+    }
+}

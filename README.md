@@ -1,50 +1,59 @@
 melonJS 2
 =========
-[![Build Status](https://travis-ci.org/melonjs/melonJS.svg)](https://travis-ci.org/melonjs/melonJS)
-[![Language grade: JavaScript](https://img.shields.io/lgtm/grade/javascript/g/melonjs/melonJS.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/melonjs/melonJS/context:javascript)
-[![Build Size](https://badgen.net/bundlephobia/min/melonjs)](https://bundlephobia.com/result?p=melonjs)
-[![Dependencies](https://img.shields.io/david/melonjs/melonJS.svg)](https://david-dm.org/melonjs/melonJS)
+![melonJS Logo](https://github.com/melonjs/melonJS/raw/master/media/Banner/Banner%20-%20Billboard%20-%20Original%20Logo%20-%20horizontal.png)
+
+[![Build Size](https://badgen.net/bundlephobia/minzip/melonjs)](https://bundlephobia.com/result?p=melonjs)
+[![Tree-shaking](https://badgen.net/bundlephobia/tree-shaking/react-colorful)](https://bundlephobia.com/result?p=melonjs)
 [![NPM Package](https://img.shields.io/npm/v/melonjs)](https://www.npmjs.com/package/melonjs)
+[![jsDeliver](https://data.jsdelivr.com/v1/package/npm/melonjs/badge?style=rounded)](https://www.jsdelivr.com/package/npm/melonjs)
 [![Boss Bounty Badge](https://img.shields.io/endpoint.svg?url=https://api.boss.dev/badge/enabled/melonjs/melonJS)](https://www.boss.dev/issues/repo/melonjs/melonJS)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 
 
 A fresh, _modern_ & lightweight HTML5 game engine
 -------------------------------------------------------------------------------
-![melonJS](http://melonjs.org/media/alex4-github.png)
+![melonJS](https://melonjs.org/img/alex4-github.png)
 
-melonJS 2 is a modern version of the melonJS game engine. It has been rebuilt almost entirely using ES6 class, inheritance and semantic, and is bundled using Rollup to provide modern features such as transpiling and tree-shaking.
+melonJS 2 is a modern version of the melonJS game engine that was first released in 2011. It has been rebuilt entirely using ES6 class, inheritance and semantic, and bundled using Rollup to provide modern features such as transpiling and tree-shaking.
 
->Note: melonJS 2 is a work in progress and will break your game (No more Jay inheritance, and no backward compatibility with deprecated APIs),  unless you want to contribute to the development or want to live on the edge, use the current unstable version at your "own risk". If you are looking at the stable legacy version of melonJS, you can find it [here](https://github.com/melonjs/melonJS/tree/legacy) under the _legacy_ branch.
+>Note: migrating an existing project to melonJS 2 (version 10.0 and higher) will definitely break your game (ES6 semantic, no more Jay inheritance, nodeJS event emitter, and no backward compatibility with deprecated legacy APIs), and you might want to read first this small step by step guide on [upgrading to melonJS 2](https://github.com/melonjs/melonJS/wiki/Upgrading-to-melonJS-2). If you are looking at the legacy version (9.x and lower) of melonJS, you can find it [here](https://github.com/melonjs/melonJS/tree/legacy) under the _legacy_ branch.
 
-[melonJS](http://melonjs.org/) is open-source, licensed under the [MIT License](LICENSE), and actively developed and maintained by small team of enthusiasts at AltByte in Singapore.
+[melonJS](https://melonjs.org/) is open-source, licensed under the [MIT License](LICENSE.md), and actively developed and maintained with the help of a small team of enthusiasts at AltByte in Singapore.
 
 About melonJS
 -------------------------------------------------------------------------------
 
-[melonJS](http://melonjs.org/) is the result of our enthusiasm & experiments with Javascript,
-and currently features :
+[melonJS](https://melonjs.org/) is a fully featured game engine :
 
-- A fresh & lightweight 2D sprite-based engine
+Compatibility
 - Standalone library (does not rely on anything else, except a HTML5 capable browser)
 - Compatible with all major browsers (Chrome, Safari, Firefox, Opera, Edge) and mobile devices
-- Fast WebGL renderer for desktop and mobile devices with fallback to Canvas rendering
+
+Graphics
+- 2D sprite-based graphic engine
+- Fast WebGL 1 & 2 renderer for desktop and mobile devices with fallback to Canvas rendering
 - High DPI resolution & Canvas advanced auto scaling
-- Web Audio support with fallback to Multi-channel HTML5 audio
-- Lightweight physics implementation to ensure low cpu requirements
+- Sprite with 9-slice scaling option, and animation management
+- built-in effects such as tinting and masking
+- Standard spritesheet, single and multiple Packed Textures support
+- System & Bitmap Text
+
+Sound
+- Web Audio support with spatial audio or stereo panning based on [Howler](https://howlerjs.com)
+- fallback to Multi-channel HTML5 audio for legacy browsers
+
+Physic
 - Polygon (SAT) based collision algorithm for accurate detection and response
 - Fast Broad-phase collision detection using spatial partitioning
-- 3rd party tools support for physic body definition such as [PhysicsEditor](https://www.codeandweb.com/physicseditor)
-- Advanced math API for Vector and Matrix
-- Tween Effects, Transition effects
-- Basic set of Object Entities and GUI elements included
-- Pooling support for object recycling
-- Basic Particle System
-- Sprite with Animation management
-- Standard spritesheet, single and multiple Packed Textures support
-- 3rd party tools support for Texture Packing such as [TexturePacker](https://www.codeandweb.com/texturepacker), [Free Texture Packer](http://free-tex-packer.com), [ShoeBox](https://renderhjs.net/shoebox/)
-- A state manager (to easily manage loading, menu, options, in-game state)
-- Tiled map format version +1.0 integration for easy level design
-    - Uncompressed Plain, Base64, CSV and JSON encoded XML tilemap loading
+- Collision filtering for optimized automatic collision detection
+
+Input
+- Mouse and Touch device support (with mouse emulation)
+- Device motion & accelerometer support
+
+Level Editor
+- Tiled map format version +1.0 built-in support for easy level design
+    - Uncompressed and [compressed](https://github.com/melonjs/tiled-inflate-plugin) Plain, Base64, CSV and JSON encoded XML tilemap loading
     - Orthogonal, Isometric and Hexagonal maps (both normal and staggered)
     - Multiple layers (multiple background/foreground, collision and Image layers)
     - Animated and multiple Tileset support
@@ -56,21 +65,61 @@ and currently features :
     - Dynamic Layer and Object/Group ordering
     - Dynamic Entity loading
     - Shape based Tile collision support
-- System & Bitmap fonts
-- Mouse and Touch device support (with mouse emulation)
-- Device motion & accelerometer support
-- Built-in support for 3rd party Application Wrappers such as [Cordova](https://cordova.apache.org)
-- Asynchronous publish/subscribe pattern messaging support (minPubSub)
-- A fully customizable preloader
-- As light as [~70kb](https://bundlephobia.com/result?p=melonjs@latest) minified & gzipped, before tree-shaking
 
-Using melonJS
+Assets
+- Asynchronous asset loading
+- A fully customizable preloader
+
+And Also
+- A state manager (to easily manage loading, menu, options, in-game state)
+- Tween Effects, Transition effects
+- Pooling support for object recycling
+- Basic Particle System
+- nodeJS EventEmitter based event system
+
+Tools integration
+-------------------------------------------------------------------------------
+ [![Free Texture Packer](https://user-images.githubusercontent.com/4033090/136762061-1d3a0dfe-dbe0-4d3d-808d-47a49ecf5309.png "Free Texture Packer")](http://free-tex-packer.com)
+ [![TexturePacker](https://user-images.githubusercontent.com/4033090/136762472-bc55a638-c69b-4ff5-9d03-c684c8bea0ea.png "TexturePacker")](https://www.codeandweb.com/texturepacker)
+ [![PhysicsEditor](https://user-images.githubusercontent.com/4033090/136762890-b1010c7f-cb19-4d35-a3f1-f5048db07835.png "PhysicsEditor")](https://www.codeandweb.com/physicseditor)
+ [![ShoeBox](https://user-images.githubusercontent.com/4033090/136762705-92027d94-d87c-4a95-b051-26647410248d.png "ShoeBox")](https://renderhjs.net/shoebox/)
+ [![Tiled](https://user-images.githubusercontent.com/4033090/136762999-5a7f377b-4136-4205-9fe0-83728c90cb9b.png "Tiled")](https://www.mapeditor.org)
+ [![Cordova](https://user-images.githubusercontent.com/4033090/136763147-6d157ce6-6921-437e-bb8f-0287b86109da.png "Cordova")](https://cordova.apache.org)
+
+Tools integration and usage with melonJS is documented in our [Wiki](https://github.com/melonjs/melonJS/wiki#third-party-tools-usage).
+
+
+# Using melonJS
+
+### For your first time using melonJS, this is where you start
+
+- [melonJS: Hacking a Platformer Game](https://melonjs.org/tutorial/)
+
+You may find it useful to skim the overview found at the wiki [Details & Usage](https://github.com/melonjs/melonJS/wiki#details--usage)
+
+When starting your own projects, checkout our [ES6 x Webpack boilerplate](https://github.com/melonjs/es6-boilerplate) or the [TypeScript x Vite boilerplate](https://github.com/melonjs/typescript-boilerplate)
+
+Demos
 -------------------------------------------------------------------------------
 
-Basic Example
+A few demos of melonJS capabilities :
+
+* [Platformer Demo](https://melonjs.github.io/examples/platformer/)
+* [Isometric Demo](https://melonjs.github.io/examples/isometric_rpg/)
+* [Sprite Demo](https://melonjs.github.io/examples/sprite/)
+* [Masking Demo](https://melonjs.github.io/examples/masking/) (WARNING: may potentially trigger seizures for people with photosensitive epilepsy)
+* [Primitive Drawing Demo](https://melonjs.github.io/examples/graphics/)
+* [UI Demo](https://melonjs.github.io/examples/UI/)
+* [Tiled Map Loader Demo](https://melonjs.github.io/examples/tiled_example_loader/)
+
+More examples are available [here](https://melonjs.github.io/examples/)
+
+-------------------------------------------------------------------------------
+
+### Basic [Hello World](https://jsfiddle.net/obiot/4o9f02tc/) Example
 
 ```JavaScript
-import * as me from "melonjs.module.js";
+import * as me from "https://esm.run/melonjs";
 
 me.device.onReady(function () {
     // initialize the display canvas once the device/browser is ready
@@ -79,8 +128,8 @@ me.device.onReady(function () {
         return;
     }
 
-    // add a gray background to the default Stage
-    me.game.world.addChild(new me.ColorLayer("background", "#202020"));
+    // set a gray background color
+    me.game.world.backgroundColor.parseCSS("#202020");
 
     // add a font text display object
     me.game.world.addChild(new me.Text(609, 281, {
@@ -93,121 +142,66 @@ me.device.onReady(function () {
     }));
 });
 ```
-> Simple hello world using melonJS 9.x or higher
+> Simple hello world using melonJS 2 (version 10.x or higher)
 
-Documentation :
+Documentation
+-------------------------------------------------------------------------------
 
-* [Online API](http://melonjs.github.io/melonJS/docs/) ([offline](https://github.com/melonjs/melonJS/archive/gh-pages.zip) version under the `docs` directory)
-* [Examples](https://melonjs.github.io/examples/)
+* [Online API](http://melonjs.github.io/melonJS/docs/)
 
-For your first time using melonJS, follow these tutorials :
-
-- [Platformer](http://melonjs.github.io/tutorial-platformer/) Step by Step Tutorial.
-- [Space Invaders](http://melonjs.github.io/tutorial-space-invaders/) Step by Step Tutorial.
-
-You may find it useful to skim the overview found at the wiki [Details & Usage](https://github.com/melonjs/melonJS/wiki#details--usage)
-
-When starting your own projects, checkout the [boilerplate](https://github.com/melonjs/boilerplate)
+To enable an offline version of the documentation, navigate to the settings page and enable `offline storage`:
+<img width="297" alt="186643536-854af31e-9c94-412e-a764-4bb7f93f15c3" src="https://user-images.githubusercontent.com/4033090/187061867-cf8c4c8a-437b-4f76-9138-610adda0ca23.png">
 
 Download melonJS
 -------------------------------------------------------------------------------
 
 The latest builds with corresponding release note are available for direct download [here](https://github.com/melonjs/melonJS/releases).
 
-Since version 10.0.0 melonJS provides different build options :
+melonJS 2 now only provides an ES6 Bundle :
 
 | build               | description |
 | ------------------- | ----------- |
 | `melonjs.module.js` | the ES6 Module (ESM) Bundle |
-| `melonjs.module.d.ts` | typescript declaration file for the ES6 Module (ESM) Bundle |
-| `melonjs.js`        | a ES5 UMD Bundle (directly transpiled from the ES6 version) |
-| `melonjs.min.js`    | a minified version of the ES5 UMD bundle |
+| `melonjs.mjs` | a tree-shakeable ES6 Module Directory |
+| `types/index.d.ts` | typescript declaration files for the ES6 Module (ESM) Bundle |
 
-Alternatively, the latest version of melonJS can be installed through [NPM](https://www.npmjs.com/package/melonjs) :
+>Note: if you need your application to be compatible with ES5, refer to our [boilerplate](#using-melonjs) that provides automatic transpiling to ES5.
+
+The latest version of melonJS can be installed through [NPM](https://www.npmjs.com/package/melonjs) :
 
     $ npm install melonjs
 
-If you need to import the ES6 module of melonjs (for Webpack):
+And then import melonjs in your project using :
 
-    $ import * as me from 'melonjs/dist/melonjs.module.js';
+    $ import * as me from 'melonjs';
 
-> Note: when using the es6 module, deprecated methods need to be manually applied, see [here](http://melonjs.github.io/melonJS/docs/me.deprecated.html#.apply)
-
-Or can simply be added to your html, through a content delivery network (CDN) URL, using for example :
+Or it can simply be added to your html, using [jsDeliver](https://www.jsdelivr.com/package/npm/melonjs) content delivery network (CDN) :
 
 ```html
-<!-- load the ES5 UMD bundle of melonJS v10.0.0 -->
-<script src="https://cdn.jsdelivr.net/npm/melonjs@10.0.0/dist/melonjs.js"></script>
-<!-- load the ES6 module bundle of melonJS v10.0.0 -->
-<script src="https://cdn.jsdelivr.net/npm/melonjs@10.0.0/dist/melonjs.module.js"></script>
+<!-- load the ES6 module bundle of melonJS v10.0 -->
+<script type="module" src="https://esm.run/melonjs@10.0"></script>
 <!-- omit the version completely to get the latest one -->
 <!-- you should NOT use this in production -->
-<script src="https://cdn.jsdelivr.net/npm/melonjs/dist/melonjs.js"></script>
-<!-- add ".min" to any JS/CSS file to get a minified version -->
-<script src="https://cdn.jsdelivr.net/npm/melonjs@10.0.0/dist/melonjs.min.js"></script>
+<script type="module" src="https://esm.run/melonjs"></script>
 ```
-and of course the debug panel :
-```html
-<!-- load the latest debug panel -->
-<script src="https://cdn.jsdelivr.net/npm/melonjs/plugins/debug/debugPanel.js"></script>
-<!-- or a specific corresponding release -->
-<script src="https://cdn.jsdelivr.net/npm/melonjs@9.0.0/plugins/debug/debugPanel.js"></script>
-```
+> Note: starting from the 10.0.0 version, the debug plugin is no longer provided as part of the melonJS library release, and has been moved to the official [boilerplate](https://github.com/melonjs/es6-boilerplate)
 
-> Note: "official" CDN and NPM install are only available from version 7.0.0 and onwards.
-> Note: current version of both the tutorials and the debugPanel are not compatible with the ES6 version.
-
-Building melonJS
+Contributing
 -------------------------------------------------------------------------------
-For most users, all you probably want is to use melonJS, and all you need then is just to download the latest built [release](https://github.com/melonjs/melonJS#download-melonjs) to get started. The only time you should need to build melonJS is if you want to contribute to the project and start developing on it.
+For most users, all you probably want is to use melonJS, and all you need then is just to download the latest built [release](https://github.com/melonjs/melonJS#download-melonjs) to get started.
 
-To build your own version of melonJS you will need to install :
+If you want to start to be part and contribute to the project, make sure to read our [Contributing Guide](CONTRIBUTING.md) before starting submitting changes or new features.
 
-- The [Node.js](http://nodejs.org/) JavaScript runtime and the [NPM](https://npmjs.org/) package manager
-
-Once Node.js and NPM have been installed, you need to install build dependencies,
-by executing the following in the folder where you cloned the repository :
-
-    $ [sudo] npm install
-
-Then build the melonJS source by running:
-
-    $ npm run build
-
-The generated library will be available under the `build` directory :
-- `melonjs.js` : plain ES5 UMD bundle
-- `melonjs.min.js` : minified ES5 UMD bundle
-- `melonjs.module.js` : plain ES6 module
-
-To run the melonJS test suite simply use the following:
-
-    $ npm run test
-
-This will run the jasmine spec tests with the output displayed on the shell. Do
-note that the latest Chrome version is required, as the test unit will run the
-Browser in a headless mode (in case of failed tests, upgrade your browser).
-
-
-Building the documentation
+Contributors
 -------------------------------------------------------------------------------
-Similarly, you can build your own copy of the docs locally by running :
+<a href = "https://github.com/melonjs/melonJS/graphs/contributors">
+  <img src = "https://contrib.rocks/image?repo=melonJS/melonjs"/>
+</a>
 
-    $ npm run doc
-
-The generated documentation will be available in the `docs` directory
-
-WIP Builds
+Sponsors
 -------------------------------------------------------------------------------
-melonJS uses Travis-CI for automated testing and build uploads. The latest build
-artifacts can be downloaded from the [melonjs-builds](https://melonjs-builds.s3.amazonaws.com/index.html?prefix=artifacts/)
-bucket.
+Support the development of melonJS by [becoming a sponsor](https://github.com/sponsors/melonjs). Get your logo in our README with a link to your site or become a backer and get your name in the [BACKERS](BACKERS.md) list. Any level of support is really appreciated and goes a long way !
 
-Questions, need help ?
--------------------------------------------------------------------------------
-If you need technical support, you can contact us through the following channels :
-* [melonJS developer forum](http://www.html5gamedevs.com/forum/32-melonjs/)
-* [gitter web chat](https://gitter.im/melonjs/public)
-* [melonJS wikipage](https://github.com/melonjs/melonJS/wiki)
-* [Discord](https://discord.gg/aur7JMk)
+[![Melon Gaming](https://user-images.githubusercontent.com/4033090/136695857-d098c27d-f4b2-4c71-8574-b5f4291779cb.png "Melon Gaming")](https://www.melongaming.com)
 
-For any other non technical related questions, feel free to also send us an [email](mailto:contact@melonjs.org).
+[![Altbyte Pte Ltd](https://user-images.githubusercontent.com/4033090/136692693-35dca8aa-5012-4a37-9ea2-51640d2e6d73.png "AltByte")](https://www.altbyte.com)

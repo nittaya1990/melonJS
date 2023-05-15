@@ -1,39 +1,32 @@
-import Vector2d from "./../math/vector2.js";
+import pool from "./../system/pooling.js";
 import Renderable from "./../renderable/renderable.js";
 import Sprite from "./../renderable/sprite.js";
 import Body from "./../physics/body.js";
-import Polygon from "./../shapes/poly.js";
 
 
 /**
+ * @classdesc
  * a Generic Object Entity
- * @class
- * @extends me.Renderable
- * @memberOf me
- * @see me.Renderable
- * @constructor
- * @param {Number} x the x coordinates of the entity object
- * @param {Number} y the y coordinates of the entity object
- * @param {Object} settings Entity properties, to be defined through Tiled or when calling the entity constructor
- * <img src="images/object_properties.png"/>
- * @param {Number} settings.width the physical width the entity takes up in game
- * @param {Number} settings.height the physical height the entity takes up in game
- * @param {String} [settings.name] object entity name
- * @param {String} [settings.id] object unique IDs
- * @param {Image|String} [settings.image] resource name of a spritesheet to use for the entity renderable component
- * @param {me.Vector2d} [settings.anchorPoint=0.0] Entity anchor point
- * @param {Number} [settings.framewidth=settings.width] width of a single frame in the given spritesheet
- * @param {Number} [settings.frameheight=settings.width] height of a single frame in the given spritesheet
- * @param {String} [settings.type] object type
- * @param {Number} [settings.collisionMask] Mask collision detection for this object
- * @param {me.Rect[]|me.Polygon[]|me.Line[]|me.Ellipse[]} [settings.shapes] the initial list of collision shapes (usually populated through Tiled)
+ * @augments Renderable
+ * @see Renderable
  */
-
-class Entity extends Renderable {
-
-
+ export default class Entity extends Renderable {
     /**
-     * @ignore
+     * @param {number} x - the x coordinates of the entity object
+     * @param {number} y - the y coordinates of the entity object
+     * @param {object} settings - Entity properties, to be defined through Tiled or when calling the entity constructor
+     * <img src="images/object_properties.png"/>
+     * @param {number} settings.width - the physical width the entity takes up in game
+     * @param {number} settings.height - the physical height the entity takes up in game
+     * @param {string} [settings.name] - object entity name
+     * @param {string} [settings.id] - object unique IDs
+     * @param {Image|string} [settings.image] - resource name of a spritesheet to use for the entity renderable component
+     * @param {Vector2d} [settings.anchorPoint=0.0] - Entity anchor point
+     * @param {number} [settings.framewidth=settings.width] - width of a single frame in the given spritesheet
+     * @param {number} [settings.frameheight=settings.width] - height of a single frame in the given spritesheet
+     * @param {string} [settings.type] - object type
+     * @param {number} [settings.collisionMask] - Mask collision detection for this object
+     * @param {Rect[]|Polygon[]|Line[]|Ellipse[]} [settings.shapes] - the initial list of collision shapes (usually populated through Tiled)
      */
     constructor(x, y, settings) {
 
@@ -60,10 +53,10 @@ class Entity extends Renderable {
 
         // Update anchorPoint
         if (settings.anchorPoint) {
-            this.anchorPoint.set(settings.anchorPoint.x, settings.anchorPoint.y);
+            this.anchorPoint.setMuted(settings.anchorPoint.x, settings.anchorPoint.y);
         } else {
             // for backward compatibility
-            this.anchorPoint.set(0, 0);
+            this.anchorPoint.setMuted(0, 0);
         }
 
         // set the sprite name if specified
@@ -74,18 +67,18 @@ class Entity extends Renderable {
         /**
          * object type (as defined in Tiled)
          * @public
-         * @type String
+         * @type {string}
          * @name type
-         * @memberOf me.Entity
+         * @memberof Entity
          */
         this.type = settings.type || "";
 
         /**
          * object unique ID (as defined in Tiled)
          * @public
-         * @type Number
+         * @type {number}
          * @name id
-         * @memberOf me.Entity
+         * @memberof Entity
          */
         this.id = settings.id || "";
 
@@ -93,29 +86,29 @@ class Entity extends Renderable {
          * dead/living state of the entity<br>
          * default value : true
          * @public
-         * @type Boolean
+         * @type {boolean}
          * @name alive
-         * @memberOf me.Entity
+         * @memberof Entity
          */
         this.alive = true;
 
         /**
          * the entity body object
          * @public
-         * @type me.Body
+         * @member {Body}
          * @name body
-         * @memberOf me.Entity
+         * @memberof Entity
          */
         // initialize the default body
         if (typeof settings.shapes === "undefined") {
-            settings.shapes = new Polygon(0, 0, [
-                new Vector2d(0,          0),
-                new Vector2d(this.width, 0),
-                new Vector2d(this.width, this.height),
-                new Vector2d(0,          this.height)
+            settings.shapes = pool.pull("Polygon", 0, 0, [
+                pool.pull("Vector2d", 0,          0),
+                pool.pull("Vector2d", this.width, 0),
+                pool.pull("Vector2d", this.width, this.height),
+                pool.pull("Vector2d", 0,          this.height)
             ]);
         }
-        this.body = new Body(this, settings.shapes, this.onBodyUpdate.bind(this));
+        this.body = new Body(this, settings.shapes, () => this.onBodyUpdate());
 
         // resize the entity if required
         if (this.width === 0 && this.height === 0) {
@@ -134,24 +127,20 @@ class Entity extends Renderable {
     /**
      * The entity renderable component (can be any objects deriving from me.Renderable, like me.Sprite for example)
      * @public
-     * @type me.Renderable
+     * @type {Renderable}
      * @name renderable
-     * @memberOf me.Entity
+     * @memberof Entity
      */
 
-    /**
-     * @ignore
-     */
     get renderable() {
         return this.children[0];
     }
-    /**
-     * @ignore
-     */
+
     set renderable(value) {
         if (value instanceof Renderable) {
             this.children[0] = value;
             this.children[0].ancestor = this;
+            this.updateBounds();
         } else {
             throw new Error(value + "should extend me.Renderable");
         }
@@ -160,23 +149,53 @@ class Entity extends Renderable {
     /** @ignore */
     update(dt) {
         if (this.renderable) {
-            return this.renderable.update(dt);
+            this.isDirty |= this.renderable.update(dt);
         }
         return super.update(dt);
     }
 
     /**
-     * update the bounds position when the body is modified
-     * @private
-     * @name onBodyUpdate
-     * @memberOf me.Entity
-     * @function
+     * update the bounding box for this entity.
+     * @param {boolean} [absolute=true] - update the bounds size and position in (world) absolute coordinates
+     * @returns {Bounds} this entity bounding box Rectangle object
      */
-    onBodyUpdate(body) {
-        // update the entity bounds to include the body bounds
-        this.getBounds().addBounds(body.getBounds(), true);
-        // update the bounds pos
-        this.updateBoundsPos(this.pos.x, this.pos.y);
+    updateBounds(absolute = true) {
+        let bounds = this.getBounds();
+
+        bounds.clear();
+        bounds.addFrame(
+            0,
+            0,
+            this.width,
+            this.height
+        );
+
+        // add each renderable bounds
+        if (this.children && this.children.length > 0) {
+            bounds.addBounds(this.children[0].getBounds());
+        }
+
+        if (this.body) {
+            bounds.addBounds(this.body.getBounds());
+        }
+
+        if (absolute === true) {
+            var absPos = this.getAbsolutePosition();
+            bounds.centerOn(absPos.x + bounds.x + bounds.width / 2,  absPos.y + bounds.y + bounds.height / 2);
+        }
+
+        return bounds;
+    }
+
+    /**
+     * update the bounds when the body is modified
+     * @ignore
+     * @name onBodyUpdate
+     * @memberof Entity
+     * @param {Body} body - the body whose bounds to update
+     */
+    onBodyUpdate() {
+        this.updateBounds();
     }
 
     preDraw(renderer) {
@@ -200,24 +219,21 @@ class Entity extends Renderable {
     }
 
     /**
-     * object draw<br>
-     * not to be called by the end user<br>
-     * called by the game manager on each game loop
+     * draw this entity (automatically called by melonJS)
      * @name draw
-     * @memberOf me.Entity
-     * @function
+     * @memberof Entity
      * @protected
-     * @param {me.CanvasRenderer|me.WebGLRenderer} renderer a renderer object
-     * @param {me.Rect} region to draw
-     **/
-    draw(renderer, rect) {
-        var renderable = this.renderable;
+     * @param {CanvasRenderer|WebGLRenderer} renderer - a renderer instance
+     * @param {Camera2d} [viewport] - the viewport to (re)draw
+     */
+    draw(renderer, viewport) {
+        let renderable = this.renderable;
         if (renderable instanceof Renderable) {
             // predraw (apply transforms)
             renderable.preDraw(renderer);
 
             // draw the object
-            renderable.draw(renderer, rect);
+            renderable.draw(renderer, viewport);
 
             // postdraw (clean-up);
             renderable.postDraw(renderer);
@@ -243,8 +259,7 @@ class Entity extends Renderable {
      * onDeactivateEvent Notification function<br>
      * Called by engine before deleting the object
      * @name onDeactivateEvent
-     * @memberOf me.Entity
-     * @function
+     * @memberof Entity
      */
     onDeactivateEvent() {
         if (this.renderable && this.renderable.onDeactivateEvent) {
@@ -252,19 +267,4 @@ class Entity extends Renderable {
         }
     }
 
-    /**
-     * onCollision callback<br>
-     * triggered in case of collision, when this entity body is being "touched" by another one<br>
-     * @name onCollision
-     * @memberOf me.Entity
-     * @function
-     * @param {me.collision.ResponseObject} response the collision response object
-     * @param {me.Entity} other the other entity touching this one (a reference to response.a or response.b)
-     * @return {Boolean} true if the object should respond to the collision (its position and velocity will be corrected)
-     */
-    onCollision() {
-        return false;
-    }
-};
-
-export default Entity;
+}

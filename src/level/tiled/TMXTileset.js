@@ -1,21 +1,19 @@
 import Vector2d from "./../../math/vector2.js";
 import { renderer } from "./../../video/video.js";
-import utils from "./../../utils/utils.js";
+import * as fileUtil from "./../../utils/file.js";
 import timer from "./../../system/timer.js";
-import loader from "./../../loader/loader.js";
+import { getTMX, getImage } from "./../../loader/loader.js";
 
 /**
  * @classdesc
  * a TMX Tile Set Object
- * @class TMXTileset
- * @memberOf me
- * @constructor
- * @param {Object} tileset tileset data in JSON format ({@link http://docs.mapeditor.org/en/stable/reference/tmx-map-format/#tileset})
  */
-export default class TMXTileset {
-
+ export default class TMXTileset {
+    /**
+     *  @param {object} tileset - tileset data in JSON format ({@link http://docs.mapeditor.org/en/stable/reference/tmx-map-format/#tileset})
+     */
     constructor(tileset) {
-        var i = 0;
+        let i = 0;
         // first gid
 
         // tile properties (collidable, etc..)
@@ -28,11 +26,11 @@ export default class TMXTileset {
 
         // check if an external tileset is defined
         if (typeof(tileset.source) !== "undefined") {
-            var src = tileset.source;
-            var ext = utils.file.getExtension(src);
+            let src = tileset.source;
+            let ext = fileUtil.getExtension(src);
             if (ext === "tsx" || ext === "json") {
                 // load the external tileset (TSX/JSON)
-                tileset = loader.getTMX(utils.file.getBasename(src));
+                tileset = getTMX(fileUtil.getBasename(src));
                 if (!tileset) {
                     throw new Error(src + " external TSX/JSON tileset not found");
                 }
@@ -50,37 +48,35 @@ export default class TMXTileset {
 
         /**
          * Tileset contains animated tiles
-         * @public
-         * @type Boolean
-         * @name me.TMXTileset#isAnimated
+         * @type {boolean}
          */
         this.isAnimated = false;
 
         /**
          * true if the tileset is a "Collection of Image" Tileset
-         * @public
-         * @type Boolean
-         * @name me.TMXTileset#isCollection
+         * @type {boolean}
          */
         this.isCollection = false;
 
         /**
+         * the tileset class
+         * @type {boolean}
+         */
+        this.class = tileset.class;
+
+        /**
          * Tileset animations
          * @private
-         * @type Map
-         * @name me.TMXTileset#animations
          */
         this.animations = new Map();
 
         /**
          * Remember the last update timestamp to prevent too many animation updates
          * @private
-         * @type Map
-         * @name me.TMXTileset#_lastUpdate
          */
         this._lastUpdate = 0;
 
-        var tiles = tileset.tiles;
+        let tiles = tileset.tiles;
         for (i in tiles) {
             if (tiles.hasOwnProperty(i)) {
                 if ("animation" in tiles[i]) {
@@ -95,8 +91,8 @@ export default class TMXTileset {
                 // set tile properties, if any
                 if ("properties" in tiles[i]) {
                     if (Array.isArray(tiles[i].properties)) { // JSON (new format)
-                        var tileProperty = {};
-                        for (var j in tiles[i].properties) {
+                        let tileProperty = {};
+                        for (let j in tiles[i].properties) {
                             tileProperty[tiles[i].properties[j].name] = tiles[i].properties[j].value;
                         }
                         this.setTileProperty(+tiles[i].id + this.firstgid, tileProperty);
@@ -105,7 +101,7 @@ export default class TMXTileset {
                     }
                 }
                 if ("image" in tiles[i]) {
-                    var image = loader.getImage(tiles[i].image);
+                    let image = getImage(tiles[i].image);
                     if (!image) {
                         throw new Error("melonJS: '" + tiles[i].image + "' file for tile '" + (+i + this.firstgid) + "' not found!");
                     }
@@ -116,14 +112,14 @@ export default class TMXTileset {
 
         this.isCollection = this.imageCollection.length > 0;
 
-        var offset = tileset.tileoffset;
+        let offset = tileset.tileoffset;
         if (offset) {
             this.tileoffset.x = +offset.x;
             this.tileoffset.y = +offset.y;
         }
 
         // set tile properties, if any (JSON old format)
-        var tileInfo = tileset.tileproperties;
+        let tileInfo = tileset.tileproperties;
         if (tileInfo) {
             for (i in tileInfo) {
                 if (tileInfo.hasOwnProperty(i)) {
@@ -136,7 +132,7 @@ export default class TMXTileset {
         if (this.isCollection === false) {
 
             // get the global tileset texture
-            this.image = loader.getImage(tileset.image);
+            this.image = getImage(tileset.image);
 
             if (!this.image) {
                 throw new Error("melonJS: '" + tileset.image + "' file for tileset '" + this.name + "' not found!");
@@ -152,8 +148,8 @@ export default class TMXTileset {
             this.atlas = this.texture.getAtlas();
 
             // calculate the number of tiles per horizontal line
-            var hTileCount = +tileset.columns || Math.round(this.image.width / (this.tilewidth + this.spacing));
-            var vTileCount = Math.round(this.image.height / (this.tileheight + this.spacing));
+            let hTileCount = +tileset.columns || Math.round(this.image.width / (this.tilewidth + this.spacing));
+            let vTileCount = Math.round(this.image.height / (this.tileheight + this.spacing));
             if (tileset.tilecount % hTileCount > 0) {
                 ++vTileCount;
             }
@@ -170,11 +166,8 @@ export default class TMXTileset {
 
     /**
      * return the tile image from a "Collection of Image" tileset
-     * @name me.TMXTileset#getTileImage
-     * @public
-     * @function
-     * @param {Number} gid
-     * @return {Image} corresponding image or undefined
+     * @param {number} gid
+     * @returns {Image} corresponding image or undefined
      */
     getTileImage(gid) {
         return this.imageCollection[gid];
@@ -184,7 +177,6 @@ export default class TMXTileset {
     /**
      * set the tile properties
      * @ignore
-     * @function
      */
     setTileProperty(gid, prop) {
         // set the given tile id
@@ -193,11 +185,8 @@ export default class TMXTileset {
 
     /**
      * return true if the gid belongs to the tileset
-     * @name me.TMXTileset#contains
-     * @public
-     * @function
-     * @param {Number} gid
-     * @return {Boolean}
+     * @param {number} gid
+     * @returns {boolean}
      */
     contains(gid) {
         return gid >= this.firstgid && gid <= this.lastgid;
@@ -205,14 +194,11 @@ export default class TMXTileset {
 
     /**
      * Get the view (local) tile ID from a GID, with animations applied
-     * @name me.TMXTileset#getViewTileId
-     * @public
-     * @function
-     * @param {Number} gid Global tile ID
-     * @return {Number} View tile ID
+     * @param {number} gid - Global tile ID
+     * @returns {number} View tile ID
      */
     getViewTileId(gid) {
-        var localId = gid - this.firstgid;
+        let localId = gid - this.firstgid;
 
         if (this.animations.has(localId)) {
             // return the current corresponding tile id if animated
@@ -224,11 +210,8 @@ export default class TMXTileset {
 
     /**
      * return the properties of the specified tile
-     * @name me.TMXTileset#getTileProperties
-     * @public
-     * @function
-     * @param {Number} tileId
-     * @return {Object}
+     * @param {number} tileId
+     * @returns {object}
      */
     getTileProperties(tileId) {
         return this.TileProperties[tileId];
@@ -236,14 +219,14 @@ export default class TMXTileset {
 
     // update tile animations
     update(dt) {
-        var duration = 0,
+        let duration = 0,
             now = timer.getTime(),
             result = false;
 
         if (this._lastUpdate !== now) {
             this._lastUpdate = now;
 
-            this.animations.forEach(function (anim) {
+            this.animations.forEach((anim) => {
                 anim.dt += dt;
                 duration = anim.cur.duration;
                 while (anim.dt >= duration) {
@@ -284,7 +267,7 @@ export default class TMXTileset {
             );
         } else {
             // use the tileset texture
-            var offset = this.atlas[this.getViewTileId(tmxTile.tileId)].offset;
+            let offset = this.atlas[this.getViewTileId(tmxTile.tileId)].offset;
             // draw the tile
             renderer.drawImage(
                 this.image,
@@ -300,4 +283,5 @@ export default class TMXTileset {
             renderer.restore();
         }
     }
-};
+}
+

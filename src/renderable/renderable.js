@@ -1,56 +1,68 @@
 import ObservableVector2d from "./../math/observable_vector2.js";
 import ObservableVector3d from "./../math/observable_vector3.js";
-import Rect from "./../shapes/rectangle.js";
-import Container from "./container.js";
+import Rect from "./../geometries/rectangle.js";
 import pool from "./../system/pooling.js";
 import { releaseAllPointerEvents } from "./../input/input.js";
 import { clamp } from "./../math/math.js";
+import Color from "./../math/color.js";
 
 /**
+ * @classdesc
  * A base class for renderable objects.
- * @class
- * @extends me.Rect
- * @memberOf me
- * @constructor
- * @param {Number} x position of the renderable object (accessible through inherited pos.x property)
- * @param {Number} y position of the renderable object (accessible through inherited pos.y property)
- * @param {Number} width object width
- * @param {Number} height object height
+ * @augments Rect
  */
-class Renderable extends Rect {
-
+ export default class Renderable extends Rect {
     /**
-     * @ignore
+     * @param {number} x - position of the renderable object (accessible through inherited pos.x property)
+     * @param {number} y - position of the renderable object (accessible through inherited pos.y property)
+     * @param {number} width - object width
+     * @param {number} height - object height
      */
     constructor(x, y, width, height) {
 
         // parent constructor
         super(x, y, width, height);
 
-        /**
-         * to identify the object as a renderable object
-         * @ignore
-         */
-        this.isRenderable = true;
+        if (this.pos instanceof ObservableVector3d) {
+            this.pos.setMuted(x, y, 0).setCallback(this.updateBoundsPos, this);
+        } else {
+            /**
+             * Position of the Renderable relative to its parent container
+             * @public
+             * @type {ObservableVector3d}
+             */
+            this.pos = pool.pull("ObservableVector3d", x, y, 0, { onUpdate: this.updateBoundsPos, scope: this});
+        }
 
-        /**
-         * If true then physic collision and input events will not impact this renderable
-         * @public
-         * @type Boolean
-         * @default true
-         * @name isKinematic
-         * @memberOf me.Renderable
-         */
-        this.isKinematic = true;
+        if (this.anchorPoint instanceof ObservableVector2d) {
+            this.anchorPoint.setMuted(0.5, 0.5).setCallback(this.onAnchorUpdate, this);
+        } else {
+            /**
+             * The anchor point is used for attachment behavior, and/or when applying transformations.<br>
+             * The coordinate system places the origin at the top left corner of the frame (0, 0) and (1, 1) means the bottom-right corner<br>
+             * <img src="images/anchor_point.png"/><br>
+             * a Renderable's anchor point defaults to (0.5,0.5), which corresponds to the center position.<br>
+             * <br>
+             * <i><b>Note:</b> Object created through Tiled will have their anchorPoint set to (0, 0) to match Tiled Level editor implementation.
+             * To specify a value through Tiled, use a json expression like `json:{"x":0.5,"y":0.5}`. </i>
+             * @type {ObservableVector2d}
+             * @default <0.5,0.5>
+             */
+            this.anchorPoint = pool.pull("ObservableVector2d", 0.5, 0.5, { onUpdate: this.onAnchorUpdate, scope: this });
+        }
+
+        if (typeof this.currentTransform === "undefined") {
+            /**
+             * the renderable default transformation matrix
+             * @type {Matrix2d}
+             */
+            this.currentTransform = pool.pull("Matrix2d");
+        }
+        this.currentTransform.identity();
 
         /**
          * the renderable physic body
-         * @public
-         * @type {me.Body}
-         * @see me.Body
-         * @see me.collision#check
-         * @name body
-         * @memberOf me.Renderable#
+         * @type {Body}
          * @example
          *  // define a new Player Class
          *  class PlayerEntity extends me.Sprite {
@@ -70,9 +82,10 @@ class Renderable extends Rect {
          *          this.body = new me.Body(this);
          *          // add a default collision shape
          *          this.body.addShape(new me.Rect(0, 0, this.width, this.height));
-         *          // configure max speed and friction
+         *          // configure max speed, friction, and initial force to be applied
          *          this.body.setMaxVelocity(3, 15);
          *          this.body.setFriction(0.4, 0);
+         *          this.body.force.set(3, 0);
          *
          *          // set the display to follow our position on both axis
          *          me.game.viewport.follow(this.pos, me.game.viewport.AXIS.BOTH);
@@ -84,36 +97,18 @@ class Renderable extends Rect {
          */
         this.body = undefined;
 
-        /**
-         * the renderable default transformation matrix
-         * @public
-         * @type me.Matrix2d
-         * @name currentTransform
-         * @memberOf me.Renderable#
-         */
-        if (typeof this.currentTransform === "undefined") {
-            this.currentTransform = pool.pull("Matrix2d");
-        }
-        this.currentTransform.identity();
-
        /**
         * (G)ame (U)nique (Id)entifier" <br>
         * a GUID will be allocated for any renderable object added <br>
         * to an object container (including the `me.game.world` container)
-        * @public
-        * @type String
-        * @name GUID
-        * @memberOf me.Renderable
+        * @type {string}
         */
         this.GUID = undefined;
 
         /**
          * an event handler that is called when the renderable leave or enter a camera viewport
-         * @public
-         * @type function
+         * @type {Function}
          * @default undefined
-         * @name onVisibilityChange
-         * @memberOf me.Renderable#
          * @example
          * this.onVisibilityChange = function(inViewport) {
          *     if (inViewport === true) {
@@ -125,73 +120,38 @@ class Renderable extends Rect {
 
         /**
          * Whether the renderable object will always update, even when outside of the viewport<br>
-         * @public
-         * @type Boolean
+         * @type {boolean}
          * @default false
-         * @name alwaysUpdate
-         * @memberOf me.Renderable
          */
         this.alwaysUpdate = false;
 
         /**
          * Whether to update this object when the game is paused.
-         * @public
-         * @type Boolean
+         * @type {boolean}
          * @default false
-         * @name updateWhenPaused
-         * @memberOf me.Renderable
          */
         this.updateWhenPaused = false;
 
         /**
          * make the renderable object persistent over level changes<br>
-         * @public
-         * @type Boolean
+         * @type {boolean}
          * @default false
-         * @name isPersistent
-         * @memberOf me.Renderable
          */
         this.isPersistent = false;
 
         /**
          * If true, this renderable will be rendered using screen coordinates,
          * as opposed to world coordinates. Use this, for example, to define UI elements.
-         * @public
-         * @type Boolean
+         * @type {boolean}
          * @default false
-         * @name floating
-         * @memberOf me.Renderable
          */
         this.floating = false;
 
         /**
-         * The anchor point is used for attachment behavior, and/or when applying transformations.<br>
-         * The coordinate system places the origin at the top left corner of the frame (0, 0) and (1, 1) means the bottom-right corner<br>
-         * <img src="images/anchor_point.png"/><br>
-         * a Renderable's anchor point defaults to (0.5,0.5), which corresponds to the center position.<br>
-         * <br>
-         * <i><b>Note:</b> Object created through Tiled will have their anchorPoint set to (0, 0) to match Tiled Level editor implementation.
-         * To specify a value through Tiled, use a json expression like `json:{"x":0.5,"y":0.5}`. </i>
-         * @public
-         * @type me.ObservableVector2d
-         * @default <0.5,0.5>
-         * @name anchorPoint
-         * @memberOf me.Renderable#
-         */
-        if (this.anchorPoint instanceof ObservableVector2d) {
-            this.anchorPoint.setMuted(0.5, 0.5).setCallback(this.onAnchorUpdate, this);
-        } else {
-            this.anchorPoint = pool.pull("ObservableVector2d", 0.5, 0.5, { onUpdate: this.onAnchorUpdate, scope: this });
-        }
-
-        /**
          * When enabled, an object container will automatically apply
          * any defined transformation before calling the child draw method.
-         * @public
-         * @type Boolean
+         * @type {boolean}
          * @default true
-         * @name autoTransform
-         * @memberOf me.Renderable
          * @example
          * // enable "automatic" transformation when the object is activated
          * onActivateEvent: function () {
@@ -209,32 +169,25 @@ class Renderable extends Rect {
         /**
          * Define the renderable opacity<br>
          * Set to zero if you do not wish an object to be drawn
-         * @see me.Renderable#setOpacity
-         * @see me.Renderable#getOpacity
-         * @public
-         * @type Number
+         * @see Renderable#setOpacity
+         * @see Renderable#getOpacity
+         * @type {number}
          * @default 1.0
-         * @name me.Renderable#alpha
          */
         this.alpha = 1.0;
 
         /**
          * a reference to the parent object that contains this renderable
-         * @public
-         * @type me.Container|me.Entity
+         * @type {Container|Entity}
          * @default undefined
-         * @name me.Renderable#ancestor
          */
         this.ancestor = undefined;
 
         /**
          * A mask limits rendering elements to the shape and position of the given mask object.
          * So, if the renderable is larger than the mask, only the intersecting part of the renderable will be visible.
-         * @public
-         * @type {me.Rect|me.Polygon|me.Line|me.Ellipse}
-         * @name mask
+         * @type {Rect|RoundRect|Polygon|Line|Ellipse}
          * @default undefined
-         * @memberOf me.Renderable#
          * @example
          * // apply a mask in the shape of a Star
          * myNPCSprite.mask = new me.Polygon(myNPCSprite.width / 2, 0, [
@@ -254,51 +207,47 @@ class Renderable extends Rect {
         this.mask = undefined;
 
         /**
-         * define a tint for this renderable. a (255, 255, 255) r, g, b value will remove the tint effect.
-         * @public
-         * @type {me.Color}
-         * @name tint
-         * @default (255, 255, 255)
-         * @memberOf me.Renderable#
-         * @example
-         * // add a red tint to this renderable
-         * this.tint.setColor(255, 128, 128);
-         * // remove the tint
-         * this.tint.setColor(255, 255, 255);
+          * (Experimental) an optional shader, to be used instead of the default built-in one, when drawing this renderable (WebGL only)
+          * @type {GLShader}
+          * @default undefined
+        */
+        this.shader = undefined;
+
+        /**
+         * the blend mode to be applied to this renderable (see renderer setBlendMode for available blend mode)
+         * @type {string}
+         * @default "normal"
+         * @see CanvasRenderer#setBlendMode
+         * @see WebGLRenderer#setBlendMode
          */
-        this.tint = pool.pull("Color", 255, 255, 255, 1.0);
+        this.blendMode = "normal";
 
         /**
          * The name of the renderable
-         * @public
-         * @type {String}
-         * @name name
+         * @type {string}
          * @default ""
-         * @memberOf me.Renderable
          */
         this.name = "";
 
         /**
-         * Position of the Renderable relative to its parent container
-         * @public
-         * @type {me.ObservableVector3d}
-         * @name pos
-         * @memberOf me.Renderable#
+         * to identify the object as a renderable object
+         * @ignore
          */
-        if (this.pos instanceof ObservableVector3d) {
-            this.pos.setMuted(x, y, 0).setCallback(this.updateBoundsPos, this);
-        } else {
-            this.pos = pool.pull("ObservableVector3d", x, y, 0, { onUpdate: this.updateBoundsPos, scope: this});
-        }
+        this.isRenderable = true;
+
+        /**
+         * If true then physic collision and input events will not impact this renderable
+         * @type {boolean}
+         * @default true
+         */
+        this.isKinematic = true;
 
         /**
          * when true the renderable will be redrawn during the next update cycle
-         * @type {Boolean}
-         * @name isDirty
-         * @default false
-         * @memberOf me.Renderable#
+         * @type {boolean}
+         * @default true
          */
-        this.isDirty = false;
+        this.isDirty = true;
 
         // keep track of when we flip
         this._flip = {
@@ -314,25 +263,50 @@ class Renderable extends Rect {
     }
 
     /**
-     * Whether the renderable object is visible and within the viewport
-     * @public
-     * @readonly
-     * @type Boolean
-     * @default false
-     * @name inViewport
-     * @memberOf me.Renderable
+     * Whether the renderable object is floating (i.e. used screen coordinates), or contained in a floating parent container
+     * @see Renderable#floating
+     * @type {boolean}
      */
+    get isFloating() {
+        return this.floating === true || (typeof this.ancestor !== "undefined" && this.ancestor.isFloating === true);
+    }
 
     /**
-     * @ignore
+     * define a tint for this renderable. a (255, 255, 255) r, g, b value will remove the tint effect.
+     * @type {Color}
+     * @default (255, 255, 255)
+     * @example
+     * // add a red tint to this renderable
+     * this.tint.setColor(255, 128, 128);
+     * // remove the tint
+     * this.tint.setColor(255, 255, 255);
+     */
+    get tint() {
+        if (typeof this._tint === "undefined") {
+            this._tint = pool.pull("Color", 255, 255, 255, 1.0);
+        }
+        return this._tint;
+    }
+    set tint(value) {
+        if (typeof this._tint === "undefined") {
+            this._tint = pool.pull("Color", 255, 255, 255, 1.0);
+        }
+        if (value instanceof Color) {
+            this._tint.copy(value);
+        } else {
+            // string (#RGB, #ARGB, #RRGGBB, #AARRGGBB)
+            this._tint.parseCSS(value);
+        }
+    }
+
+    /**
+     * Whether the renderable object is visible and within the viewport
+     * @type {boolean}
+     * @default false
      */
     get inViewport() {
         return this._inViewport;
     }
-
-    /**
-     * @ignore
-     */
     set inViewport(value) {
         if (this._inViewport !== value) {
             this._inViewport = value;
@@ -345,14 +319,8 @@ class Renderable extends Rect {
     /**
      * returns true if this renderable is flipped on the horizontal axis
      * @public
-     * @see me.Renderable#flipX
-     * @type {Boolean}
-     * @name isFlippedX
-     * @memberOf me.Renderable
-     */
-
-    /**
-     * @ignore
+     * @see Renderable#flipX
+     * @type {boolean}
      */
     get isFlippedX() {
         return this._flip.x === true;
@@ -361,14 +329,8 @@ class Renderable extends Rect {
     /**
      * returns true if this renderable is flipped on the vertical axis
      * @public
-     * @see me.Renderable#flipY
-     * @type {Boolean}
-     * @name isFlippedY
-     * @memberOf me.Renderable
-     */
-
-    /**
-     * @ignore
+     * @see Renderable#flipY
+     * @type {boolean}
      */
     get isFlippedY() {
         return this._flip.y === true;
@@ -376,16 +338,13 @@ class Renderable extends Rect {
 
     /**
      * returns the bounding box for this renderable
-     * @name getBounds
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @return {me.Bounds} bounding box Rectangle object
+     * @returns {Bounds} bounding box Rectangle object
      */
     getBounds() {
         if (typeof this._bounds === "undefined") {
             super.getBounds();
             if (this.isFinite()) {
-                this._bounds.setMinMax(this.pos.x, this.pos.y, this.pos.x + this.width, this.pos.y + this.height);
+                this.updateBounds();
             } else {
                 // e.g. containers or game world can have infinite size
                 this._bounds.setMinMax(this.pos.x, this.pos.y, this.width, this.height);
@@ -397,10 +356,7 @@ class Renderable extends Rect {
 
     /**
      * get the renderable alpha channel value<br>
-     * @name getOpacity
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @return {Number} current opacity value between 0 and 1
+     * @returns {number} current opacity value between 0 and 1
      */
     getOpacity() {
         return this.alpha;
@@ -408,10 +364,7 @@ class Renderable extends Rect {
 
     /**
      * set the renderable alpha channel value<br>
-     * @name setOpacity
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @param {Number} alpha opacity value between 0.0 and 1.0
+     * @param {number} alpha - opacity value between 0.0 and 1.0
      */
     setOpacity(alpha) {
         if (typeof (alpha) === "number") {
@@ -420,70 +373,64 @@ class Renderable extends Rect {
             if (isNaN(this.alpha)) {
                 this.alpha = 1.0;
             }
+            this.isDirty = true;
         }
     }
 
     /**
      * flip the renderable on the horizontal axis (around the center of the renderable)
-     * @see me.Matrix2d#scaleX
-     * @name flipX
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @param {Boolean} [flip=false] `true` to flip this renderable.
-     * @return {me.Renderable} Reference to this object for method chaining
+     * @see Matrix2d#scaleX
+     * @param {boolean} [flip=true] - `true` to flip this renderable.
+     * @returns {Renderable} Reference to this object for method chaining
      */
-    flipX(flip) {
-        this._flip.x = !!flip;
-        this.isDirty = true;
+    flipX(flip = true) {
+        if (this.isFlippedX !== flip) {
+            this._flip.x = !!flip;
+            this.scale(-1, 1);
+            this.isDirty = true;
+        }
         return this;
     }
 
     /**
      * flip the renderable on the vertical axis (around the center of the renderable)
-     * @see me.Matrix2d#scaleY
-     * @name flipY
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @param {Boolean} [flip=false] `true` to flip this renderable.
-     * @return {me.Renderable} Reference to this object for method chaining
+     * @see Matrix2d#scaleY
+     * @param {boolean} [flip=true] - `true` to flip this renderable.
+     * @returns {Renderable} Reference to this object for method chaining
      */
-    flipY(flip) {
-        this._flip.y = !!flip;
-        this.isDirty = true;
+    flipY(flip = true) {
+        if (this.isFlippedY !== flip) {
+            this._flip.y = !!flip;
+            this.scale(1, -1);
+            this.isDirty = true;
+        }
         return this;
     }
 
     /**
      * multiply the renderable currentTransform with the given matrix
-     * @name transform
-     * @memberOf me.Renderable.prototype
-     * @see me.Renderable#currentTransform
-     * @function
-     * @param {me.Matrix2d} matrix the transformation matrix
-     * @return {me.Renderable} Reference to this object for method chaining
+     * @see Renderable#currentTransform
+     * @param {Matrix2d} m - the transformation matrix
+     * @returns {Renderable} Reference to this object for method chaining
      */
     transform(m) {
         this.currentTransform.multiply(m);
-        //super.transform(m);
-        this.updateBoundsPos(this.pos.x, this.pos.y);
+        this.updateBounds();
         this.isDirty = true;
         return this;
     }
 
     /**
      * return the angle to the specified target
-     * @name angleTo
-     * @memberOf me.Renderable
-     * @function
-     * @param {me.Renderable|me.Vector2d|me.Vector3d} target
-     * @return {Number} angle in radians
+     * @param {Renderable|Vector2d|Vector3d} target
+     * @returns {number} angle in radians
      */
     angleTo(target) {
-        var a = this.getBounds();
-        var ax, ay;
+        let a = this.getBounds();
+        let ax, ay;
 
         if (target instanceof Renderable) {
-            var b = target.getBounds();
+            let b = target.getBounds();
             ax = b.centerX - a.centerX;
             ay = b.centerY - a.centerY;
         } else { // vector object
@@ -496,18 +443,15 @@ class Renderable extends Rect {
 
     /**
      * return the distance to the specified target
-     * @name distanceTo
-     * @memberOf me.Renderable
-     * @function
-     * @param {me.Renderable|me.Vector2d|me.Vector3d} target
-     * @return {Number} distance
+     * @param {Renderable|Vector2d|Vector3d} target
+     * @returns {number} distance
      */
     distanceTo(target) {
-        var a = this.getBounds();
-        var dx, dy;
+        let a = this.getBounds();
+        let dx, dy;
 
         if (target instanceof Renderable) {
-            var b = target.getBounds();
+            let b = target.getBounds();
             dx = a.centerX - b.centerX;
             dy = a.centerY - b.centerY;
         } else { // vector object
@@ -520,14 +464,11 @@ class Renderable extends Rect {
 
     /**
      * Rotate this renderable towards the given target.
-     * @name lookAt
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @param {me.Renderable|me.Vector2d|me.Vector3d} target the renderable or position to look at
-     * @return {me.Renderable} Reference to this object for method chaining
+     * @param {Renderable|Vector2d|Vector3d} target - the renderable or position to look at
+     * @returns {Renderable} Reference to this object for method chaining
      */
     lookAt(target) {
-        var position;
+        let position;
 
         if (target instanceof Renderable) {
             position = target.pos;
@@ -535,7 +476,7 @@ class Renderable extends Rect {
             position = target;
         }
 
-        var angle = this.angleTo(position);
+        let angle = this.angleTo(position);
 
         this.rotate(angle);
 
@@ -544,17 +485,14 @@ class Renderable extends Rect {
 
     /**
      * Rotate this renderable by the specified angle (in radians).
-     * @name rotate
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @param {Number} angle The angle to rotate (in radians)
-     * @param {me.Vector2d|me.ObservableVector2d} [v] an optional point to rotate around
-     * @return {me.Renderable} Reference to this object for method chaining
+     * @param {number} angle - The angle to rotate (in radians)
+     * @param {Vector2d|ObservableVector2d} [v] - an optional point to rotate around
+     * @returns {Renderable} Reference to this object for method chaining
      */
-    rotate(angle) {
-        if (!isNaN(angle)) {
-            this.currentTransform.rotate(angle);
-            //this.updateBoundsPos(this.pos.x, this.pos.y);
+    rotate(angle, v) {
+        if (angle !== 0) {
+            this.currentTransform.rotate(angle, v);
+            this.updateBounds();
             this.isDirty = true;
         }
         return this;
@@ -566,27 +504,21 @@ class Renderable extends Rect {
      * when rendering.  It does not scale the object itself.  For example if the renderable
      * is an image, the image.width and image.height properties are unaltered but the currentTransform
      * member will be changed.
-     * @name scale
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @param {Number} x a number representing the abscissa of the scaling vector.
-     * @param {Number} [y=x] a number representing the ordinate of the scaling vector.
-     * @return {me.Renderable} Reference to this object for method chaining
+     * @param {number} x - a number representing the abscissa of the scaling vector.
+     * @param {number} [y=x] - a number representing the ordinate of the scaling vector.
+     * @returns {Renderable} Reference to this object for method chaining
      */
-    scale(x, y) {
+    scale(x, y = x) {
         this.currentTransform.scale(x, y);
-        super.scale(x, y);
+        this.updateBounds();
         this.isDirty = true;
         return this;
     }
 
     /**
      * scale the renderable around his anchor point
-     * @name scaleV
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @param {me.Vector2d} vector scaling vector
-     * @return {me.Renderable} Reference to this object for method chaining
+     * @param {Vector2d} v - scaling vector
+     * @returns {Renderable} Reference to this object for method chaining
      */
     scaleV(v) {
         this.scale(v.x, v.y);
@@ -594,72 +526,80 @@ class Renderable extends Rect {
     }
 
     /**
-     * update function. <br>
-     * automatically called by the game manager {@link me.game}
-     * @name update
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @protected
-     * @param {Number} dt time since the last update in milliseconds.
-     * @return false
-     **/
-    update(/* dt */) {
+     * update function (automatically called by melonJS).
+     * @param {number} dt - time since the last update in milliseconds.
+     * @returns {boolean} true if the renderable is dirty
+     */
+    update(dt) { // eslint-disable-line no-unused-vars
         return this.isDirty;
     }
 
     /**
      * update the bounding box for this shape.
-     * @ignore
-     * @name updateBounds
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @return {me.Bounds} this shape bounding box Rectangle object
+     * @param {boolean} [absolute=true] - update the bounds size and position in (world) absolute coordinates
+     * @returns {Bounds} this shape bounding box Rectangle object
      */
-    updateBounds() {
-        super.updateBounds();
-        this.updateBoundsPos(this.pos.x, this.pos.y);
-        return this.getBounds();
+    updateBounds(absolute = true) {
+        if (this.isRenderable) {
+            let bounds = this.getBounds();
+
+            bounds.clear();
+
+            if ((this.autoTransform === true) && (!this.currentTransform.isIdentity())) {
+                // temporarly translate the matrix based on the anchor point
+                this.currentTransform.translate(
+                    -this.width * this.anchorPoint.x,
+                    -this.height * this.anchorPoint.y
+                );
+                bounds.addFrame(
+                    0,
+                    0,
+                    this.width,
+                    this.height,
+                    this.currentTransform
+                );
+                this.currentTransform.translate(
+                    this.width * this.anchorPoint.x,
+                    this.height * this.anchorPoint.y
+                );
+            } else {
+                bounds.addFrame(
+                    0,
+                    0,
+                    this.width,
+                    this.height
+                );
+                // translate the bounds based on the anchor point
+                bounds.translate(
+                    -this.width * this.anchorPoint.x,
+                    -this.height * this.anchorPoint.y
+                );
+            }
+
+            if (absolute === true) {
+                var absPos = this.getAbsolutePosition();
+                bounds.centerOn(absPos.x + bounds.x + bounds.width / 2,  absPos.y + bounds.y + bounds.height / 2);
+            }
+            return bounds;
+
+        } else {
+            // manage the case where updateBounds is called
+            // before the object being yet properly initialized
+            return super.updateBounds(absolute);
+        }
     }
 
     /**
      * update the renderable's bounding rect (private)
      * @ignore
-     * @name updateBoundsPos
-     * @memberOf me.Renderable.prototype
-     * @function
      */
-     updateBoundsPos(newX, newY) {
-         var bounds = this.getBounds();
-
-         bounds.shift(newX, newY);
-
-         if (typeof this.anchorPoint !== "undefined" && bounds.isFinite()) {
-             bounds.translate(
-                 -(this.anchorPoint.x * bounds.width),
-                 -(this.anchorPoint.y * bounds.height)
-             );
-         }
-
-         /*
-         if (typeof this.body !== "undefined") {
-              var bodyBounds = this.body.getBounds();
-              bounds.translate(bodyBounds.x, bodyBounds.y);
-         }
-         */
-
-         // XXX: This is called from the constructor, before it gets an ancestor
-         if (this.ancestor instanceof Container && this.floating !== true) {
-             bounds.translate(this.ancestor.getAbsolutePosition());
-         }
-         //return bounds;
+     updateBoundsPos(newX = this.pos.x, newY = this.pos.y) {
+        this.getBounds().translate(newX - this.pos.x, newY - this.pos.y);
      }
 
      /**
       * return the renderable absolute position in the game world
-      * @name getAbsolutePosition
-      * @memberOf me.Renderable.prototype
-      * @function
-      * @return {me.Vector2d}
+      * @returns {Vector2d}
       */
       getAbsolutePosition() {
           if (typeof this._absPos === "undefined") {
@@ -667,7 +607,7 @@ class Renderable extends Rect {
           }
           // XXX Cache me or something
           this._absPos.set(this.pos.x, this.pos.y);
-          if (this.ancestor instanceof Container && this.floating !== true) {
+          if (typeof this.ancestor !== "undefined" && typeof this.ancestor.getAbsolutePosition === "function" && this.floating !== true) {
               this._absPos.add(this.ancestor.getAbsolutePosition());
           }
           return this._absPos;
@@ -676,33 +616,28 @@ class Renderable extends Rect {
     /**
      * called when the anchor point value is changed
      * @private
-     * @name onAnchorUpdate
-     * @memberOf me.Renderable.prototype
-     * @function
+     * @param {number} x - the new X value to be set for the anchor
+     * @param {number} y - the new Y value to be set for the anchor
      */
-     onAnchorUpdate(newX, newY) {
+     onAnchorUpdate(x, y) {
          // since the callback is called before setting the new value
          // manually update the anchor point (required for updateBoundsPos)
-         this.anchorPoint.setMuted(newX, newY);
+         this.anchorPoint.setMuted(x, y);
          // then call updateBounds
-         this.updateBoundsPos(this.pos.x, this.pos.y);
+         this.updateBounds();
+         this.isDirty = true;
      }
 
-
     /**
-     * prepare the rendering context before drawing
-     * (apply defined transforms, anchor point). <br>
-     * automatically called by the game manager {@link me.game}
-     * @name preDraw
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @protected
-     * @param {me.CanvasRenderer|me.WebGLRenderer} renderer a renderer object
-     **/
+     * Prepare the rendering context before drawing (automatically called by melonJS).
+     * This will apply any defined transforms, anchor point, tint or blend mode and translate the context accordingly to this renderable position.
+     * @see Renderable#draw
+     * @see Renderable#postDraw
+     * @param {CanvasRenderer|WebGLRenderer} renderer - a renderer object
+     */
     preDraw(renderer) {
-        var bounds = this.getBounds();
-        var ax = bounds.width * this.anchorPoint.x,
-            ay = bounds.height * this.anchorPoint.y;
+        let ax = this.width * this.anchorPoint.x,
+            ay = this.height * this.anchorPoint.y;
 
         // save renderer context
         renderer.save();
@@ -710,21 +645,16 @@ class Renderable extends Rect {
         // apply the defined alpha value
         renderer.setGlobalAlpha(renderer.globalAlpha() * this.getOpacity());
 
-        // apply flip
-        if (this._flip.x || this._flip.y) {
-            var dx = this._flip.x ? this.centerX - ax : 0,
-                dy = this._flip.y ? this.centerY - ay : 0;
-
-            renderer.translate(dx, dy);
-            renderer.scale(this._flip.x  ? -1 : 1, this._flip.y  ? -1 : 1);
-            renderer.translate(-dx, -dy);
-        }
-
         // apply stencil mask if defined
         if (typeof this.mask !== "undefined") {
             renderer.translate(this.pos.x, this.pos.y);
             renderer.setMask(this.mask);
             renderer.translate(-this.pos.x, -this.pos.y);
+        }
+
+        // use this renderable shader if defined
+        if (typeof this.shader === "object" && typeof renderer.gl !== "undefined") {
+            renderer.customShader = this.shader;
         }
 
         if ((this.autoTransform === true) && (!this.currentTransform.isIdentity())) {
@@ -737,34 +667,39 @@ class Renderable extends Rect {
         // offset by the anchor point
         renderer.translate(-ax, -ay);
 
-        // apply the defined tint, if any
-        renderer.setTint(this.tint);
+        // apply the current tint and opacity
+        renderer.setTint(this.tint, this.getOpacity());
+
+        // apply blending if different from "normal"
+        if (this.blendMode !== renderer.getBlendMode()) {
+            renderer.setBlendMode(this.blendMode);
+        }
     }
 
     /**
-     * object draw. <br>
-     * automatically called by the game manager {@link me.game}
-     * @name draw
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @protected
-     * @param {me.CanvasRenderer|me.WebGLRenderer} renderer a renderer object
-     **/
-    draw(/*renderer*/) {
+     * Draw this renderable (automatically called by melonJS).
+     * All draw operations for renderable are made respectively
+     * to the position or transforms set or applied by the preDraw method.
+     * The main draw loop will first call preDraw() to prepare the context for drawing the renderable,
+     * then draw() to draw the renderable, and finally postDraw() to clear the context.
+     * If you override this method, be mindful about the drawing logic; for example if you draw a shape
+     * from the draw method, you should make sure that your draw it at the 0, 0 coordinates.
+     * @see Renderable#preDraw
+     * @see Renderable#postDraw
+     * @param {CanvasRenderer|WebGLRenderer} renderer - a renderer instance
+     * @param {Camera2d} [viewport] - the viewport to (re)draw
+     */
+    draw(renderer, viewport) {  // eslint-disable-line no-unused-vars
         // empty one !
     }
 
     /**
-     * restore the rendering context after drawing. <br>
-     * automatically called by the game manager {@link me.game}
-     * @name postDraw
-     * @memberOf me.Renderable.prototype
-     * @function
-     * @protected
-     * @param {me.CanvasRenderer|me.WebGLRenderer} renderer a renderer object
-     **/
+     * restore the rendering context after drawing (automatically called by melonJS).
+     * @see Renderable#preDraw
+     * @see Renderable#draw
+     * @param {CanvasRenderer|WebGLRenderer} renderer - a renderer object
+     */
     postDraw(renderer) {
-
         // remove the previously applied tint
         renderer.clearTint();
 
@@ -773,11 +708,41 @@ class Renderable extends Rect {
             renderer.clearMask();
         }
 
+        // revert to the default shader if defined
+        if (typeof this.shader === "object" && typeof renderer.gl !== "undefined") {
+            renderer.customShader = undefined;
+            //renderer.setCompositor("quad");
+        }
+
         // restore the context
         renderer.restore();
 
         // reset the dirty flag
         this.isDirty = false;
+    }
+
+    /**
+     * onCollision callback, triggered in case of collision,
+     * when this renderable body is colliding with another one
+     * @param {ResponseObject} response - the collision response object
+     * @param {Renderable|Container|Entity|Sprite|NineSliceSprite} other - the other renderable touching this one (a reference to response.a or response.b)
+     * @returns {boolean} true if the object should respond to the collision (its position and velocity will be corrected)
+     * @example
+     * // colision handler
+     * onCollision(response) {
+     *     if (response.b.body.collisionType === me.collision.types.ENEMY_OBJECT) {
+     *         // makes the other object solid, by substracting the overlap vector to the current position
+     *         this.pos.sub(response.overlapV);
+     *         this.hurt();
+     *         // not solid
+     *         return false;
+     *     }
+     *     // Make the object solid
+     *     return true;
+     * },
+     */
+    onCollision(response, other) { // eslint-disable-line no-unused-vars
+        return false;
     }
 
     /**
@@ -810,9 +775,9 @@ class Renderable extends Rect {
             this.mask = undefined;
         }
 
-        if (typeof this.tint !== "undefined") {
-            pool.push(this.tint);
-            this.tint = undefined;
+        if (typeof this._tint !== "undefined") {
+            pool.push(this._tint);
+            this._tint = undefined;
         }
 
         this.ancestor = undefined;
@@ -828,20 +793,20 @@ class Renderable extends Rect {
 
         // call the user defined destroy method
         this.onDestroyEvent.apply(this, arguments);
+
+        // destroy any shader object if not done by the user through onDestroyEvent()
+        if (typeof this.shader === "object") {
+            this.shader.destroy();
+            this.shader = undefined;
+        }
     }
 
     /**
      * OnDestroy Notification function<br>
      * Called by engine before deleting the object
-     * @name onDestroyEvent
-     * @memberOf me.Renderable
-     * @function
      */
     onDestroyEvent() {
         // to be extended !
     }
 
-};
-
-
-export default Renderable;
+}

@@ -1,8 +1,9 @@
 import {getBindingKey, triggerKeyEvent} from "./keyboard.js";
 import * as event from "./../system/event.js";
 
+
 // Analog deadzone
-var deadzone = 0.1;
+let deadzone = 0.1;
 
 /**
  * Normalize axis values for wired Xbox 360
@@ -40,10 +41,10 @@ function ouyaNormalizeFn(value, axis, button) {
 }
 
 // Match vendor and product codes for Firefox
-var vendorProductRE = /^([0-9a-f]{1,4})-([0-9a-f]{1,4})-/i;
+const vendorProductRE = /^([0-9a-f]{1,4})-([0-9a-f]{1,4})-/i;
 
 // Match leading zeros
-var leadingZeroRE = /^0+/;
+const leadingZeroRE = /^0+/;
 
 /**
  * Firefox reports different ids for gamepads depending on the platform:
@@ -54,23 +55,17 @@ var leadingZeroRE = /^0+/;
  * @ignore
  */
 function addMapping(id, mapping) {
-    var expanded_id = id.replace(vendorProductRE, function (_, a, b) {
-        return (
-            "000".substr(a.length - 1) + a + "-" +
-            "000".substr(b.length - 1) + b + "-"
-        );
-    });
-    var sparse_id = id.replace(vendorProductRE, function (_, a, b) {
-        return (
-            a.replace(leadingZeroRE, "") + "-" +
-            b.replace(leadingZeroRE, "") + "-"
-        );
-    });
+    const expanded_id = id.replace(vendorProductRE, (_, a, b) =>
+        "000".slice(a.length - 1) + a + "-" +
+        "000".slice(b.length - 1) + b + "-"
+    );
+    const sparse_id = id.replace(vendorProductRE, (_, a, b) =>
+        a.replace(leadingZeroRE, "") + "-" +
+        b.replace(leadingZeroRE, "") + "-"
+    );
 
     // Normalize optional parameters
-    mapping.analog = mapping.analog || mapping.buttons.map(function () {
-        return -1;
-    });
+    mapping.analog = mapping.analog || mapping.buttons.map(() => -1);
     mapping.normalize_fn = mapping.normalize_fn || function (value) { return value; };
 
     remap.set(expanded_id, mapping);
@@ -78,17 +73,14 @@ function addMapping(id, mapping) {
 }
 
 // binding list
-var bindings = {};
+let bindings = {};
 
 // mapping list
-var remap = new Map();
+let remap = new Map();
 
-var updateEventHandler;
+let updateEventHandler;
 
-/**
- * Default gamepad mappings
- * @ignore
- */
+// Default gamepad mappings
 [
     // Firefox mappings
     [
@@ -134,7 +126,7 @@ var updateEventHandler;
             "normalize_fn" : ouyaNormalizeFn
         }
     ]
-].forEach(function (value) {
+].forEach((value) => {
     addMapping(value[0], value[1]);
 });
 
@@ -142,28 +134,28 @@ var updateEventHandler;
  * Update gamepad status
  * @ignore
  */
-var updateGamepads = function () {
-    var gamepads = navigator.getGamepads();
+let updateGamepads = function () {
+    let gamepads = navigator.getGamepads();
 
     // Trigger button bindings
-    Object.keys(bindings).forEach(function (index) {
-        var gamepad = gamepads[index];
+    Object.keys(bindings).forEach((index) => {
+        let gamepad = gamepads[index];
         if (!gamepad) {
             return;
         }
 
-        var mapping = null;
+        let mapping = null;
         if (gamepad.mapping !== "standard") {
             mapping = remap.get(gamepad.id);
         }
 
-        var binding = bindings[index];
+        let binding = bindings[index];
 
         // Iterate all buttons that have active bindings
-        Object.keys(binding.buttons).forEach(function (button) {
-            var last = binding.buttons[button];
-            var mapped_button = button;
-            var mapped_axis = -1;
+        Object.keys(binding.buttons).forEach((button) => {
+            let last = binding.buttons[button];
+            let mapped_button = button;
+            let mapped_axis = -1;
 
             // Remap buttons if necessary
             if (mapping) {
@@ -176,12 +168,12 @@ var updateGamepads = function () {
             }
 
             // Get mapped button
-            var current = gamepad.buttons[mapped_button] || {};
+            let current = gamepad.buttons[mapped_button] || {};
 
             // Remap an axis to an analog button
             if (mapping) {
                 if (mapped_axis >= 0) {
-                    var value = mapping.normalize_fn(gamepad.axes[mapped_axis], -1, +button);
+                    let value = mapping.normalize_fn(gamepad.axes[mapped_axis], -1, +button);
 
                     // Create a new object, because GamepadButton is read-only
                     current = {
@@ -191,7 +183,7 @@ var updateGamepads = function () {
                 }
             }
 
-            event.publish(event.GAMEPAD_UPDATE, [ index, "buttons", +button, current ]);
+            event.emit(event.GAMEPAD_UPDATE, index, "buttons", +button, current);
 
             // Edge detection
             if (!last.pressed && current.pressed) {
@@ -207,9 +199,9 @@ var updateGamepads = function () {
         });
 
         // Iterate all axes that have active bindings
-        Object.keys(binding.axes).forEach(function (axis) {
-            var last = binding.axes[axis];
-            var mapped_axis = axis;
+        Object.keys(binding.axes).forEach((axis) => {
+            let last = binding.axes[axis];
+            let mapped_axis = axis;
 
             // Remap buttons if necessary
             if (mapping) {
@@ -221,7 +213,7 @@ var updateGamepads = function () {
             }
 
             // retrieve the current value and normalize if necessary
-            var value = gamepad.axes[mapped_axis];
+            let value = gamepad.axes[mapped_axis];
             if (typeof(value) === "undefined") {
                 return;
             }
@@ -229,13 +221,13 @@ var updateGamepads = function () {
                 value = mapping.normalize_fn(value, +axis, -1);
             }
             // normalize value into a [-1, 1] range value (treat 0 as positive)
-            var range = Math.sign(value) || 1;
+            let range = Math.sign(value) || 1;
             if (last[range].keyCode === 0) {
                 return;
             }
-            var pressed = (Math.abs(value) >= (deadzone + Math.abs(last[range].threshold)));
+            let pressed = (Math.abs(value) >= (deadzone + Math.abs(last[range].threshold)));
 
-            event.publish(event.GAMEPAD_UPDATE, [ index, "axes", +axis, value ]);
+            event.emit(event.GAMEPAD_UPDATE, index, "axes", +axis, value);
 
             // Edge detection
             if (!last[range].pressed && pressed) {
@@ -260,21 +252,19 @@ var updateGamepads = function () {
     });
 };
 
-/**
- * gamepad connected callback
- * @ignore
- */
-window.addEventListener("gamepadconnected", function (e) {
-    event.publish(event.GAMEPAD_CONNECTED, [ e.gamepad ]);
-}, false);
+// gamepad connected callback
+if (globalThis.navigator && typeof globalThis.navigator.getGamepads === "function") {
+    globalThis.addEventListener("gamepadconnected", (e) => {
+        event.emit(event.GAMEPAD_CONNECTED, e.gamepad);
+    }, false);
 
-/**
- * gamepad disconnected callback
- * @ignore
- */
-window.addEventListener("gamepaddisconnected", function (e) {
-    event.publish(event.GAMEPAD_DISCONNECTED, [ e.gamepad ]);
-}, false);
+    /*
+     * gamepad disconnected callback
+     */
+    globalThis.addEventListener("gamepaddisconnected", (e) => {
+        event.emit(event.GAMEPAD_DISCONNECTED, e.gamepad);
+    }, false);
+}
 
 /*
  * PUBLIC STUFF
@@ -284,9 +274,9 @@ window.addEventListener("gamepaddisconnected", function (e) {
  * Namespace for standard gamepad mapping constants
  * @public
  * @namespace GAMEPAD
- * @memberOf me.input
+ * @memberof input
  */
-export var GAMEPAD = {
+export let GAMEPAD = {
     /**
      * Standard gamepad mapping information for axes<br>
      * <ul>
@@ -296,8 +286,8 @@ export var GAMEPAD = {
      * </ul>
      * @public
      * @name AXES
-     * @enum {Number}
-     * @memberOf me.input.GAMEPAD
+     * @enum {number}
+     * @memberof input.GAMEPAD
      * @see https://w3c.github.io/gamepad/#remapping
      */
     "AXES" : {
@@ -323,8 +313,8 @@ export var GAMEPAD = {
      * </ul>
      * @public
      * @name BUTTONS
-     * @enum {Number}
-     * @memberOf me.input.GAMEPAD
+     * @enum {number}
+     * @memberof input.GAMEPAD
      * @see https://w3c.github.io/gamepad/#remapping
      */
     "BUTTONS" : {
@@ -357,15 +347,14 @@ export var GAMEPAD = {
 /**
  * Associate a gamepad event to a keycode
  * @name bindGamepad
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {Number} index Gamepad index
- * @param {Object} button Button/Axis definition
- * @param {String} button.type "buttons" or "axes"
- * @param {me.input.GAMEPAD.BUTTONS|me.input.GAMEPAD.AXES} button.code button or axis code id
- * @param {Number} [button.threshold=1] value indicating when the axis should trigger the keycode (e.g. -0.5 or 0.5)
- * @param {me.input.KEY} keyCode
+ * @param {number} index - Gamepad index
+ * @param {object} button - Button/Axis definition
+ * @param {string} button.type - "buttons" or "axes"
+ * @param {number} button.code - button or axis code id (See {@link input.GAMEPAD.BUTTONS}, {@link input.GAMEPAD.AXES})
+ * @param {number} [button.threshold=1] - value indicating when the axis should trigger the keycode (e.g. -0.5 or 0.5)
+ * @param {number} keyCode - (See {@link input.KEY})
  * @example
  * // enable the keyboard
  * me.input.bindKey(me.input.KEY.X, "shoot");
@@ -384,7 +373,7 @@ export function bindGamepad(index, button, keyCode) {
     // register to the the update event if not yet done and supported by the browser
     // if not supported, the function will fail silently (-> update loop won't be called)
     if (typeof updateEventHandler === "undefined" && typeof navigator.getGamepads === "function") {
-        updateEventHandler = event.subscribe(event.GAME_UPDATE, updateGamepads);
+        updateEventHandler = event.on(event.GAME_BEFORE_UPDATE, updateGamepads);
     }
 
     // Allocate bindings if not defined
@@ -395,13 +384,13 @@ export function bindGamepad(index, button, keyCode) {
         };
     }
 
-    var mapping = {
+    let mapping = {
         "keyCode" : keyCode,
         "value" : 0,
         "pressed" : false,
         "threshold" : button.threshold // can be undefined
     };
-    var binding = bindings[index][button.type];
+    let binding = bindings[index][button.type];
 
     // Map the gamepad button or axis to the keycode
     if (button.type === "buttons") {
@@ -409,12 +398,12 @@ export function bindGamepad(index, button, keyCode) {
         binding[button.code] = mapping;
     } else if (button.type === "axes") {
         // normalize threshold into a value that can represent both side of the axis
-        var range = (Math.sign(button.threshold) || 1);
+        let range = (Math.sign(button.threshold) || 1);
         // axes are defined using two objects; one for negative and one for positive
         if (!binding[button.code]) {
             binding[button.code] = {};
         }
-        var axes = binding[button.code];
+        let axes = binding[button.code];
         axes[range] = mapping;
 
         // Ensure the opposite axis exists
@@ -427,16 +416,15 @@ export function bindGamepad(index, button, keyCode) {
             };
         }
     }
-};
+}
 
 /**
  * unbind the defined keycode
  * @name unbindGamepad
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {Number} index Gamepad index
- * @param {me.input.GAMEPAD.BUTTONS} button
+ * @param {number} index - Gamepad index
+ * @param {number} button - (See {@link input.GAMEPAD.BUTTONS})
  * @example
  * me.input.unbindGamepad(0, me.input.GAMEPAD.BUTTONS.FACE_1);
  */
@@ -445,35 +433,33 @@ export function unbindGamepad(index, button) {
         throw new Error("no bindings for gamepad " + index);
     }
     bindings[index].buttons[button] = {};
-};
+}
 
 /**
  * Set deadzone for analog gamepad inputs<br>
  * The default deadzone is 0.1 (10%) Analog values less than this will be ignored
  * @name setGamepadDeadzone
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {Number} value Deadzone value
+ * @param {number} value - Deadzone value
  */
 export function setGamepadDeadzone(value) {
     deadzone = value;
-};
+}
 
 /**
  * specify a custom mapping for a specific gamepad id<br>
  * see below for the default mapping : <br>
  * <center><img src="images/gamepad_diagram.png"/></center><br>
  * @name setGamepadMapping
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {String} id Gamepad id string
- * @param {Object} mapping A hash table
- * @param {Number[]} mapping.axes Standard analog control stick axis locations
- * @param {Number[]} mapping.buttons Standard digital button locations
- * @param {Number[]} [mapping.analog] Analog axis locations for buttons
- * @param {Function} [mapping.normalize_fn] a function that returns a normalized value in range [-1.0..1.0] for the given value, axis and button
+ * @param {string} id - Gamepad id string
+ * @param {object} mapping - A hash table
+ * @param {number[]} mapping.axes - Standard analog control stick axis locations
+ * @param {number[]} mapping.buttons - Standard digital button locations
+ * @param {number[]} [mapping.analog] - Analog axis locations for buttons
+ * @param {Function} [mapping.normalize_fn] - a function that returns a normalized value in range [-1.0..1.0] for the given value, axis and button
  * @example
  * // A weird controller that has its axis mappings reversed
  * me.input.setGamepadMapping("Generic USB Controller", {
@@ -498,4 +484,4 @@ export function setGamepadDeadzone(value) {
  *   }
  * });
  */
-export var setGamepadMapping = addMapping;
+export let setGamepadMapping = addMapping;

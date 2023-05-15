@@ -4,40 +4,49 @@ import * as TMXUtils from "./TMXUtils.js";
 import Tile from "./TMXTile.js";
 import Renderable from "./../../renderable/renderable.js";
 import CanvasRenderer from "./../../video/canvas/canvas_renderer";
-import { world } from "./../../game.js";
+import { game } from "../../index.js";
 
 /**
  * Create required arrays for the given layer object
  * @ignore
  */
-function initArray(layer) {
+function initArray(rows, cols) {
     // initialize the array
-    layer.layerData = new Array(layer.cols);
-    for (var x = 0; x < layer.cols; x++) {
-        layer.layerData[x] = new Array(layer.rows);
-        for (var y = 0; y < layer.rows; y++) {
-            layer.layerData[x][y] = null;
+    let array = new Array(cols);
+    for (let col = 0; col < cols; col++) {
+        array[col] = new Array(rows);
+        for (let row = 0; row < rows; row++) {
+            array[col][row] = null;
         }
     }
+    return array;
 }
 
 /**
  * Set a tiled layer Data
  * @ignore
  */
-function setLayerData(layer, data) {
-    var idx = 0;
-    // initialize the data array
-    initArray(layer);
+function setLayerData(layer, bounds, data) {
+    let idx = 0;
+    let width, height;
+
+    // layer provide rows and cols, chunk width and height
+    if (typeof bounds.rows === "undefined") {
+        width = bounds.width;
+        height = bounds.height;
+    } else {
+        width = bounds.cols;
+        height = bounds.rows;
+    }
     // set everything
-    for (var y = 0; y < layer.rows; y++) {
-        for (var x = 0; x < layer.cols; x++) {
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
             // get the value of the gid
-            var gid = data[idx++];
+            const gid = data[idx++];
             // fill the array
             if (gid !== 0) {
                 // add a new tile to the layer
-                layer.layerData[x][y] = layer.getTileById(gid, x, y);
+                layer.layerData[x + bounds.x][y + bounds.y] = layer.getTileById(gid, x + bounds.x, y + bounds.y);
             }
         }
     }
@@ -49,10 +58,10 @@ function setLayerData(layer, data) {
  */
 function preRenderLayer(layer, renderer) {
     // set everything
-    for (var y = 0; y < layer.rows; y++) {
-        for (var x = 0; x < layer.cols; x++) {
+    for (let y = 0; y < layer.rows; y++) {
+        for (let x = 0; x < layer.cols; x++) {
             // get the value of the gid
-            var tile = layer.layerData[x][y];
+            const tile = layer.layerData[x][y];
             // draw the tile if defined
             if (tile instanceof Tile) {
                 // add a new tile to the layer
@@ -63,23 +72,20 @@ function preRenderLayer(layer, renderer) {
 }
 
 /**
+ * @classdesc
  * a TMX Tile Layer Object
  * Tiled QT 0.7.x format
- * @class
- * @extends me.Renderable
- * @memberOf me
- * @constructor
- * @param {Object} map layer data in JSON format ({@link http://docs.mapeditor.org/en/stable/reference/tmx-map-format/#layer})
- * @param {Object} data layer data in JSON format ({@link http://docs.mapeditor.org/en/stable/reference/tmx-map-format/#layer})
- * @param {Number} tilewidth width of each tile in pixels
- * @param {Number} tileheight height of each tile in pixels
- * @param {String} orientation "isometric" or "orthogonal"
- * @param {me.TMXTilesetGroup} tilesets tileset as defined in Tiled
- * @param {Number} z z-index position
+ * @augments Renderable
  */
-class TMXLayer extends Renderable {
+ export default class TMXLayer extends Renderable {
     /**
-     * @ignore
+     * @param {object} map - layer data in JSON format ({@link http://docs.mapeditor.org/en/stable/reference/tmx-map-format/#layer})
+     * @param {object} data - layer data in JSON format ({@link http://docs.mapeditor.org/en/stable/reference/tmx-map-format/#layer})
+     * @param {number} tilewidth - width of each tile in pixels
+     * @param {number} tileheight - height of each tile in pixels
+     * @param {string} orientation - "isometric" or "orthogonal"
+     * @param {TMXTilesetGroup} tilesets - tileset as defined in Tiled
+     * @param {number} z - z-index position
      */
     constructor(map, data, tilewidth, tileheight, orientation, tilesets, z) {
         // super constructor
@@ -93,10 +99,22 @@ class TMXLayer extends Renderable {
         this.orientation = orientation;
 
         /**
+         * Horizontal layer offset in tiles
+         * @default 0
+         * @type {number}
+         */
+        this.x = 0;
+
+        /**
+         * Vertical layer offset in tiles
+         * @default 0
+         * @type {number}
+         */
+        this.y = 0;
+
+        /**
          * The Layer corresponding Tilesets
-         * @public
-         * @type me.TMXTilesetGroup
-         * @name me.TMXLayer#tilesets
+         * @type {TMXTilesetGroup}
          */
         this.tilesets = tilesets;
 
@@ -109,37 +127,37 @@ class TMXLayer extends Renderable {
             "width" : 0,
             "height" : 0
         };
-        for (var i = 0; i < this.tilesets.length; i++) {
-            var tileset = this.tilesets.getTilesetByIndex(i);
+        for (let i = 0; i < this.tilesets.length; i++) {
+            const tileset = this.tilesets.getTilesetByIndex(i);
             this.maxTileSize.width = Math.max(this.maxTileSize.width, tileset.tilewidth);
             this.maxTileSize.height = Math.max(this.maxTileSize.height, tileset.tileheight);
         }
 
         /**
          * All animated tilesets in this layer
-         * @ignore
-         * @type Array
-         * @name me.TMXLayer#animatedTilesets
+         * @type {TMXTileset[]}
          */
         this.animatedTilesets = [];
 
         /**
          * Layer contains tileset animations
-         * @public
-         * @type Boolean
-         * @name me.TMXLayer#isAnimated
+         * @type {boolean}
          */
         this.isAnimated = false;
 
         /**
          * the order in which tiles on orthogonal tile layers are rendered.
          * (valid values are "left-down", "left-up", "right-down", "right-up")
-         * @public
-         * @type {String}
+         * @type {string}
          * @default "right-down"
-         * @name me.TMXLayer#renderorder
          */
         this.renderorder = data.renderorder || "right-down";
+
+        /**
+         * the layer class
+         * @type {string}
+         */
+        this.class = data.class;
 
         // for displaying order
         this.pos.z = z;
@@ -153,7 +171,7 @@ class TMXLayer extends Renderable {
         this.rows = +data.height;
 
         // layer opacity
-        var visible = typeof(data.visible) !== "undefined" ? +data.visible : 1;
+        let visible = typeof(data.visible) !== "undefined" ? +data.visible : 1;
         this.setOpacity(visible ? +data.opacity : 0);
 
         // layer tint
@@ -176,23 +194,44 @@ class TMXLayer extends Renderable {
 
         // check for the correct rendering method
         if (typeof (this.preRender) === "undefined") {
-            this.preRender = world.preRender;
+            this.preRender = game.world.preRender;
         }
 
         // set a renderer
         this.setRenderer(map.getRenderer());
 
 
-        // initialize and set the layer data
-        setLayerData(this,
-            TMXUtils.decode(
-                data.data,
-                data.encoding,
-                data.compression
-            )
-        );
-    }
+        // initialize the data array
+        this.layerData = initArray(this.rows, this.cols);
 
+        if (map.infinite === 0) {
+            // initialize and set the layer data
+            setLayerData(
+                this,
+                this,
+                TMXUtils.decode(
+                    data.data,
+                    data.encoding,
+                    data.compression
+                )
+            );
+        } else if (map.infinite === 1) {
+            // infinite map, initialize per chunk
+            data.chunks.forEach((chunk) => {
+                // initialize and set the layer data
+                setLayerData(
+                    this,
+                    chunk,
+                    TMXUtils.decode(
+                        chunk.data,
+                        data.encoding,
+                        data.compression
+                    )
+                );
+            });
+        }
+
+    }
 
     // called when the layer is added to the game world or a container
     onActivateEvent() {
@@ -202,8 +241,8 @@ class TMXLayer extends Renderable {
         }
 
         if (this.tilesets) {
-            var tileset = this.tilesets.tilesets;
-            for (var i = 0; i < tileset.length; i++) {
+            let tileset = this.tilesets.tilesets;
+            for (let i = 0; i < tileset.length; i++) {
                 if (tileset[i].isAnimated) {
                     this.animatedTilesets.push(tileset[i]);
                 }
@@ -216,10 +255,6 @@ class TMXLayer extends Renderable {
         if (this.isAnimated) {
             this.preRender = false;
         }
-
-        // Resize the bounding rect
-        this.getBounds().addBounds(this.getRenderer().getBounds(), true);
-        this.getBounds().shift(this.pos);
 
         // if pre-rendering method is use, create an offline canvas/renderer
         if ((this.preRender === true) && (!this.canvasRenderer)) {
@@ -242,14 +277,10 @@ class TMXLayer extends Renderable {
 
     /**
      * Set the TMX renderer for this layer object
-     * @name setRenderer
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @param {me.TMXRenderer} renderer
+     * @param {TMXRenderer} renderer
      * @example
      * // use the parent map default renderer
-     * var layer = new me.TMXLayer(...);
+     * let layer = new me.TMXLayer(...);
      * layer.setRenderer(map.getRenderer());
      */
     setRenderer(renderer) {
@@ -258,52 +289,39 @@ class TMXLayer extends Renderable {
 
     /**
      * Return the layer current renderer object
-     * @name getRenderer
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @return {me.TMXRenderer} renderer
+     * @returns {TMXRenderer} renderer
      */
     getRenderer() {
         return this.renderer;
     }
 
-
     /**
      * Return the TileId of the Tile at the specified position
-     * @name getTileId
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @param {Number} x X coordinate (in world/pixels coordinates)
-     * @param {Number} y Y coordinate (in world/pixels coordinates)
-     * @return {Number} TileId or null if there is no Tile at the given position
+     * @param {number} x - X coordinate (in world/pixels coordinates)
+     * @param {number} y - Y coordinate (in world/pixels coordinates)
+     * @returns {number} TileId or null if there is no Tile at the given position
      */
     getTileId(x, y) {
-        var tile = this.getTile(x, y);
+        let tile = this.getTile(x, y);
         return (tile ? tile.tileId : null);
     }
 
     /**
      * Return the Tile object at the specified position
-     * @name getTile
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @param {Number} x X coordinate (in world/pixels coordinates)
-     * @param {Number} y Y coordinate (in world/pixels coordinates)
-     * @return {me.Tile} corresponding tile or null if there is no defined tile at the coordinate or if outside of the layer bounds
+     * @param {number} x - X coordinate (in world/pixels coordinates)
+     * @param {number} y - Y coordinate (in world/pixels coordinates)
+     * @returns {Tile} corresponding tile or null if there is no defined tile at the coordinate or if outside of the layer bounds
      * @example
      * // get the TMX Map Layer called "Front layer"
-     * var layer = me.game.world.getChildByName("Front Layer")[0];
+     * let layer = me.game.world.getChildByName("Front Layer")[0];
      * // get the tile object corresponding to the latest pointer position
-     * var tile = layer.getTile(me.input.pointer.pos.x, me.input.pointer.pos.y);
+     * let tile = layer.getTile(me.input.pointer.x, me.input.pointer.y);
      */
     getTile(x, y) {
-        var tile = null;
+        let tile = null;
 
         if (this.contains(x, y)) {
-            var coord = this.getRenderer().pixelToTileCoords(x, y, pool.pull("Vector2d"));
+            let coord = this.getRenderer().pixelToTileCoords(x, y, pool.pull("Vector2d"));
             tile = this.cellAt(coord.x, coord.y);
             pool.push(coord);
         }
@@ -312,14 +330,10 @@ class TMXLayer extends Renderable {
 
     /**
      * assign the given Tile object to the specified position
-     * @name getTile
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @return {me.Tile} a Tile object
-     * @param {Number} x X coordinate (in world/pixels coordinates)
-     * @param {Number} y Y coordinate (in world/pixels coordinates)
-     * @return {me.Tile} the tile object
+     * @param {Tile} tile - the tile object to be assigned
+     * @param {number} x - x coordinate (in world/pixels coordinates)
+     * @param {number} y - y coordinate (in world/pixels coordinates)
+     * @returns {Tile} the tile object
      */
     setTile(tile, x, y) {
         this.layerData[x][y] = tile;
@@ -328,14 +342,10 @@ class TMXLayer extends Renderable {
 
     /**
      * return a new the Tile object corresponding to the given tile id
-     * @name setTile
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @param {Number} tileId tileId
-     * @param {Number} x X coordinate (in world/pixels coordinates)
-     * @param {Number} y Y coordinate (in world/pixels coordinates)
-     * @return {me.Tile} the tile object
+     * @param {number} tileId - tileId
+     * @param {number} x - X coordinate (in world/pixels coordinates)
+     * @param {number} y - Y coordinate (in world/pixels coordinates)
+     * @returns {Tile} the tile object
      */
     getTileById(tileId, x, y) {
         if (!this.tileset.contains(tileId)) {
@@ -347,23 +357,19 @@ class TMXLayer extends Renderable {
 
     /**
      * Return the Tile object at the specified tile coordinates
-     * @name cellAt
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @param {Number} x x position of the tile (in Tile unit)
-     * @param {Number} y x position of the tile (in Tile unit)
-     * @param {Number} [boundsCheck=true] check first if within the layer bounds
-     * @return {me.Tile} corresponding tile or null if there is no defined tile at the position or if outside of the layer bounds
+     * @param {number} x - x position of the tile (in Tile unit)
+     * @param {number} y - x position of the tile (in Tile unit)
+     * @param {number} [boundsCheck=true] - check first if within the layer bounds
+     * @returns {Tile} corresponding tile or null if there is no defined tile at the position or if outside of the layer bounds
      * @example
      * // return the first tile at offset 0, 0
-     * var tile = layer.cellAt(0, 0);
+     * let tile = layer.cellAt(0, 0);
      */
     cellAt(x, y, boundsCheck) {
-        var _x = ~~x;
-        var _y = ~~y;
+        let _x = ~~x;
+        let _y = ~~y;
 
-        var renderer = this.getRenderer();
+        let renderer = this.getRenderer();
         // boundsCheck only used internally by the tiled renderer, when the layer bound check was already done
         if (boundsCheck === false || (_x >= 0 && _x < renderer.cols && _y >= 0 && _y < renderer.rows)) {
             return this.layerData[_x][_y];
@@ -374,12 +380,8 @@ class TMXLayer extends Renderable {
 
     /**
      * clear the tile at the specified position
-     * @name clearTile
-     * @memberOf me.TMXLayer
-     * @public
-     * @function
-     * @param {Number} x X coordinate (in map coordinates: row/column)
-     * @param {Number} y Y coordinate (in map coordinates: row/column)
+     * @param {number} x - X coordinate (in map coordinates: row/column)
+     * @param {number} y - Y coordinate (in map coordinates: row/column)
      * @example
      * me.game.world.getChildByType(me.TMXLayer).forEach(function(layer) {
      *     // clear all tiles at the given x,y coordinates
@@ -401,13 +403,12 @@ class TMXLayer extends Renderable {
      */
     update(dt) {
         if (this.isAnimated) {
-            var result = false;
-            for (var i = 0; i < this.animatedTilesets.length; i++) {
+            let result = false;
+            for (let i = 0; i < this.animatedTilesets.length; i++) {
                 result = this.animatedTilesets[i].update(dt) || result;
             }
             return result;
         }
-
         return false;
     }
 
@@ -418,8 +419,8 @@ class TMXLayer extends Renderable {
     draw(renderer, rect) {
         // use the offscreen canvas
         if (this.preRender) {
-            var width = Math.min(rect.width, this.width);
-            var height = Math.min(rect.height, this.height);
+            const width = Math.min(rect.width, this.width);
+            const height = Math.min(rect.height, this.height);
 
             // draw using the cached canvas
             renderer.drawImage(
@@ -436,6 +437,5 @@ class TMXLayer extends Renderable {
             this.getRenderer().drawTileLayer(renderer, this, rect);
         }
     }
-};
+}
 
-export default TMXLayer;

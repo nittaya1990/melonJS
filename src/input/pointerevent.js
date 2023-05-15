@@ -1,53 +1,50 @@
 import {preventDefault} from "./input.js";
 import {getBindingKey, triggerKeyEvent} from "./keyboard.js";
-import Vector2d from "./../math/vector2.js";
-import { renderer, scaleRatio } from "./../video/video.js";
-import utils from "./../utils/utils.js";
+import { renderer } from "./../video/video.js";
+import { throttle } from "./../utils/function.js";
+import { remove } from "./../utils/array.js";
 import * as event from "./../system/event.js";
 import timer from "./../system/timer.js";
 import pool from "./../system/pooling.js";
-import device from "./../system/device.js";
+import * as device from "./../system/device.js";
 import Pointer from "./pointer.js";
-import Rect from "./../shapes/rectangle.js";
-import Container from "./../renderable/container.js";
-import Renderable from "./../renderable/renderable.js";
-import { world, viewport } from "./../game.js";
-
+import Rect from "./../geometries/rectangle.js";
+import { game } from "../index.js";
 
 /**
  * A pool of `Pointer` objects to cache pointer/touch event coordinates.
- * @type {Array.<Vector>}
+ * @type {Array.<Vector2d>}
  * @ignore
  */
-var T_POINTERS = [];
+let T_POINTERS = [];
 
 // list of registered Event handlers
-var eventHandlers = new Map();
+let eventHandlers = new Map();
 
 // a cache rect represeting the current pointer area
-var currentPointer;
+let currentPointer;
 
 // some useful flags
-var pointerInitialized = false;
+let pointerInitialized = false;
 
 // Track last event timestamp to prevent firing events out of order
-var lastTimeStamp = 0;
+let lastTimeStamp = 0;
 
 // "active" list of supported events
-var activeEventList = [];
+let activeEventList = [];
 
 // internal constants
-var WHEEL           = ["wheel"];
-var POINTER_MOVE    = ["pointermove",   "mousemove",    "touchmove"];
-var POINTER_DOWN    = ["pointerdown",   "mousedown",    "touchstart"];
-var POINTER_UP      = ["pointerup",     "mouseup",      "touchend"];
-var POINTER_CANCEL  = ["pointercancel", "mousecancel",  "touchcancel"];
-var POINTER_ENTER   = ["pointerenter",  "mouseenter",   "touchenter"];
-var POINTER_OVER    = ["pointerover",   "mouseover",    "touchover"];
-var POINTER_LEAVE   = ["pointerleave",  "mouseleave",   "touchleave"];
+const WHEEL           = ["wheel"];
+const POINTER_MOVE    = ["pointermove",   "mousemove",    "touchmove"];
+const POINTER_DOWN    = ["pointerdown",   "mousedown",    "touchstart"];
+const POINTER_UP      = ["pointerup",     "mouseup",      "touchend"];
+const POINTER_CANCEL  = ["pointercancel", "mousecancel",  "touchcancel"];
+const POINTER_ENTER   = ["pointerenter",  "mouseenter",   "touchenter"];
+const POINTER_OVER    = ["pointerover",   "mouseover",    "touchover"];
+const POINTER_LEAVE   = ["pointerleave",  "mouseleave",   "touchleave"];
 
 // list of standard pointer event type
-var pointerEventList = [
+const pointerEventList = [
     WHEEL[0],
     POINTER_MOVE[0],
     POINTER_DOWN[0],
@@ -59,7 +56,7 @@ var pointerEventList = [
 ];
 
 // legacy mouse event type
-var mouseEventList = [
+const mouseEventList = [
     WHEEL[0],
     POINTER_MOVE[1],
     POINTER_DOWN[1],
@@ -71,7 +68,7 @@ var mouseEventList = [
 ];
 
 // iOS style touch event type
-var touchEventList = [
+const touchEventList = [
     POINTER_MOVE[2],
     POINTER_DOWN[2],
     POINTER_UP[2],
@@ -81,7 +78,7 @@ var touchEventList = [
     POINTER_LEAVE[2]
 ];
 
-var pointerEventMap = {
+const pointerEventMap = {
     wheel : WHEEL,
     pointermove: POINTER_MOVE,
     pointerdown: POINTER_DOWN,
@@ -96,14 +93,14 @@ var pointerEventMap = {
  * Array of normalized events (mouse, touch, pointer)
  * @ignore
  */
-var normalizedEvents = [];
+let normalizedEvents = [];
 
 /**
  * addEventListerner for the specified event list and callback
  * @ignore
  */
 function registerEventListener(eventList, callback) {
-    for (var x = 0; x < eventList.length; x++) {
+    for (let x = 0; x < eventList.length; x++) {
         if (POINTER_MOVE.indexOf(eventList[x]) === -1) {
             pointerEventTarget.addEventListener(eventList[x], callback, { passive: (preventDefault === false) });
         }
@@ -120,26 +117,24 @@ function enablePointerEvent() {
         // the current pointer area
         currentPointer = new Rect(0, 0, 1, 1);
 
-        pointer = new Pointer(0, 0, 1, 1);
-
         // instantiate a pool of pointer catched
-        for (var v = 0; v < device.maxTouchPoints; v++) {
+        for (let v = 0; v < device.maxTouchPoints; v++) {
             T_POINTERS.push(new Pointer());
         }
 
         if (pointerEventTarget === null) {
             // default pointer event target
-            pointerEventTarget = renderer.getScreenCanvas();
+            pointerEventTarget = renderer.getCanvas();
         }
 
-        if (device.PointerEvent) {
+        if (device.pointerEvent) {
             // standard Pointer Events
             activeEventList = pointerEventList;
         } else {
             // Regular Mouse events
             activeEventList = mouseEventList;
         }
-        if (device.touch && !device.PointerEvent) {
+        if (device.touch && !device.pointerEvent) {
             // touch event on mobile devices
             activeEventList = activeEventList.concat(touchEventList);
         }
@@ -155,7 +150,7 @@ function enablePointerEvent() {
             device.focus();
             pointerEventTarget.addEventListener(
                 activeEventList[2], // MOUSE/POINTER DOWN
-                function () {
+                () => {
                     device.focus();
                 },
                 { passive: (preventDefault === false) }
@@ -163,8 +158,8 @@ function enablePointerEvent() {
         }
 
         // if time interval <= 16, disable the feature
-        var i;
-        var events = findAllActiveEvents(activeEventList, POINTER_MOVE);
+        let i;
+        let events = findAllActiveEvents(activeEventList, POINTER_MOVE);
         if (throttlingInterval < 17) {
             for (i = 0; i < events.length; i++) {
                 if (activeEventList.indexOf(events[i]) !== -1) {
@@ -182,7 +177,7 @@ function enablePointerEvent() {
                 if (activeEventList.indexOf(events[i]) !== -1) {
                     pointerEventTarget.addEventListener(
                         events[i],
-                        utils.function.throttle(
+                        throttle(
                             onMoveEvent,
                             throttlingInterval,
                             false
@@ -195,6 +190,17 @@ function enablePointerEvent() {
         // disable all gesture by default
         setTouchAction(pointerEventTarget);
 
+        // set a on change listener on pointerlock if supported
+        if (device.hasPointerLockSupport) {
+            document.addEventListener("pointerlockchange", () => {
+                // change the locked status accordingly
+                locked = document.pointerLockElement === game.getParentElement();
+                // emit the corresponding internal event
+                event.emit(event.POINTERLOCKCHANGE, locked);
+            }, true);
+        }
+
+        // all done !
         pointerInitialized = true;
     }
 }
@@ -203,8 +209,8 @@ function enablePointerEvent() {
  * @ignore
  */
 function findActiveEvent(activeEventList, eventTypes) {
-    for (var i = 0; i < eventTypes.length; i++) {
-        var event = activeEventList.indexOf(eventTypes[i]);
+    for (let i = 0; i < eventTypes.length; i++) {
+        const event = activeEventList.indexOf(eventTypes[i]);
         if (event !== -1) {
             return eventTypes[i];
         }
@@ -215,9 +221,9 @@ function findActiveEvent(activeEventList, eventTypes) {
  * @ignore
  */
 function findAllActiveEvents(activeEventList, eventTypes) {
-    var events = [];
-    for (var i = 0; i < eventTypes.length; i++) {
-        var event = activeEventList.indexOf(eventTypes[i]);
+    let events = [];
+    for (let i = 0; i < eventTypes.length; i++) {
+        const event = activeEventList.indexOf(eventTypes[i]);
         if (event !== -1) {
             events.push(eventTypes[i]);
         }
@@ -230,10 +236,10 @@ function findAllActiveEvents(activeEventList, eventTypes) {
  * @ignore
  */
 function triggerEvent(handlers, type, pointer, pointerId) {
-    var callback;
+    let callback;
     if (handlers.callbacks[type]) {
         handlers.pointerId = pointerId;
-        for (var i = handlers.callbacks[type].length - 1; (i >= 0) && (callback = handlers.callbacks[type][i]); i--) {
+        for (let i = handlers.callbacks[type].length - 1; (i >= 0) && (callback = handlers.callbacks[type][i]); i--) {
             if (callback(pointer) === false) {
                 // stop propagating the event if return false
                 return true;
@@ -248,17 +254,17 @@ function triggerEvent(handlers, type, pointer, pointerId) {
  * @ignore
  */
 function dispatchEvent(normalizedEvents) {
-    var handled = false;
+    let handled = false;
 
     while (normalizedEvents.length > 0) {
 
         // keep a reference to the last item
-        var pointer = normalizedEvents.pop();
+        let pointer = normalizedEvents.pop();
         // and put it back into our cache
         T_POINTERS.push(pointer);
 
-        // Do not fire older events
-        if (typeof(pointer.event.timeStamp) !== "undefined") {
+        // Do not fire older touch events (not required for PointerEvent type)
+        if (pointer.isNormalized === true && typeof(pointer.event.timeStamp) !== "undefined") {
             if (pointer.event.timeStamp < lastTimeStamp) {
                 continue;
             }
@@ -276,24 +282,24 @@ function dispatchEvent(normalizedEvents) {
         if (POINTER_MOVE.includes(pointer.type)) {
             pointer.gameX = pointer.gameLocalX = pointer.gameScreenX;
             pointer.gameY = pointer.gameLocalY = pointer.gameScreenY;
-            event.publish(event.POINTERMOVE, [pointer]);
+            event.emit(event.POINTERMOVE, pointer);
         }
 
         // fetch valid candiates from the game world container
-        var candidates = world.broadphase.retrieve(currentPointer, Container.prototype._sortReverseZ);
+        let candidates = game.world.broadphase.retrieve(currentPointer, game.world._sortReverseZ);
 
         // add the main game viewport to the list of candidates
-        candidates = candidates.concat([ viewport ]);
+        candidates = candidates.concat([ game.viewport ]);
 
-        for (var c = candidates.length, candidate; c--, (candidate = candidates[c]);) {
+        for (let c = candidates.length, candidate; c--, (candidate = candidates[c]);) {
             if (eventHandlers.has(candidate) && (candidate.isKinematic !== true)) {
-                var handlers = eventHandlers.get(candidate);
-                var region = handlers.region;
-                var ancestor = region.ancestor;
-                var bounds = region.getBounds();
-                var eventInBounds = false;
+                const handlers = eventHandlers.get(candidate);
+                const region = handlers.region;
+                const ancestor = region.ancestor;
+                const bounds = region.getBounds();
+                let eventInBounds = false;
 
-                if (region.floating === true) {
+                if (region.isFloating === true) {
                     pointer.gameX = pointer.gameLocalX = pointer.gameScreenX;
                     pointer.gameY = pointer.gameLocalY = pointer.gameScreenY;
                 } else {
@@ -304,31 +310,12 @@ function dispatchEvent(normalizedEvents) {
                 // adjust gameLocalX to specify coordinates
                 // within the region ancestor container
                 if (typeof ancestor !== "undefined") {
-                    var parentBounds = ancestor.getBounds();
+                    let parentBounds = ancestor.getBounds();
                     pointer.gameLocalX = pointer.gameX - parentBounds.x;
                     pointer.gameLocalY = pointer.gameY - parentBounds.y;
                 }
 
-                // apply inverse transformation for renderable
-                if (region instanceof Renderable) {
-                    var gameX = pointer.gameX;
-                    var gameY = pointer.gameY;
-                    if (!region.currentTransform.isIdentity()) {
-                        var invV = region.currentTransform.applyInverse(
-                            pool.pull("Vector2d", gameX, gameY)
-                        );
-                        gameX = invV.x;
-                        gameY = invV.y;
-                        pool.push(invV);
-                    }
-                    eventInBounds = bounds.contains(gameX, gameY);
-                } else {
-                    eventInBounds =
-                        bounds.contains(pointer.gameX, pointer.gameY) &&
-                        (bounds === region ||
-                        // if the given target is another shape than me.Rect
-                        region.contains(pointer.gameLocalX, pointer.gameLocalY));
-                }
+                eventInBounds = bounds.contains(pointer.gameX, pointer.gameY);
 
                 switch (pointer.type) {
                     case POINTER_MOVE[0]:
@@ -411,15 +398,15 @@ function dispatchEvent(normalizedEvents) {
  * @ignore
  */
 function normalizeEvent(originalEvent) {
-    var pointer;
+    let _pointer;
 
     // PointerEvent or standard Mouse event
-    if (device.TouchEvent && originalEvent.changedTouches) {
+    if (device.touchEvent && originalEvent.changedTouches) {
         // iOS/Android Touch event
-        for (var i = 0, l = originalEvent.changedTouches.length; i < l; i++) {
-            var touchEvent = originalEvent.changedTouches[i];
-            pointer = T_POINTERS.pop();
-            pointer.setEvent(
+        for (let i = 0, l = originalEvent.changedTouches.length; i < l; i++) {
+            const touchEvent = originalEvent.changedTouches[i];
+            _pointer = T_POINTERS.pop();
+            _pointer.setEvent(
                 originalEvent,
                 touchEvent.pageX,
                 touchEvent.pageY,
@@ -427,12 +414,12 @@ function normalizeEvent(originalEvent) {
                 touchEvent.clientY,
                 touchEvent.identifier
             );
-            normalizedEvents.push(pointer);
+            normalizedEvents.push(_pointer);
         }
     } else {
         // Mouse or PointerEvent
-        pointer = T_POINTERS.pop();
-        pointer.setEvent(
+        _pointer = T_POINTERS.pop();
+        _pointer.setEvent(
             originalEvent,
             originalEvent.pageX,
             originalEvent.pageY,
@@ -440,7 +427,7 @@ function normalizeEvent(originalEvent) {
             originalEvent.clientY,
             originalEvent.pointerId
         );
-        normalizedEvents.push(pointer);
+        normalizedEvents.push(_pointer);
     }
 
     // if event.isPrimary is defined and false, return
@@ -474,7 +461,7 @@ function onPointerEvent(e) {
     normalizeEvent(e);
 
     // remember/use the first "primary" normalized event for pointer.bind
-    var button = normalizedEvents[0].button;
+    let button = normalizedEvents[0].button;
 
     // dispatch event to registered objects
     if (dispatchEvent(normalizedEvents) || e.type === "wheel") {
@@ -484,7 +471,7 @@ function onPointerEvent(e) {
         }
     }
 
-    var keycode = pointer.bind[button];
+    let keycode = pointer.bind[button];
 
     // check if mapped to a key
     if (keycode) {
@@ -499,78 +486,86 @@ function onPointerEvent(e) {
  /**
   * the default target element for pointer events (usually the canvas element in which the game is rendered)
   * @public
-  * @type EventTarget
+  * @type {EventTarget}
   * @name pointerEventTarget
-  * @memberOf me.input
+  * @memberof input
   */
- export var pointerEventTarget = null;
+ export let pointerEventTarget = null;
 
 /**
  * Pointer information (current position and size)
  * @public
- * @type {me.Rect}
+ * @type {Rect}
  * @name pointer
- * @memberOf me.input
+ * @memberof input
  */
-export var pointer;
+export let pointer = new Pointer(0, 0, 1, 1);
+
+
+/**
+ * indicates if the pointer is currently locked
+ * @public
+ * @type {boolean}
+ * @name locked
+ * @memberof input
+ */
+export let locked = false;
 
 /**
  * time interval for event throttling in milliseconds<br>
  * default value : "1000/me.timer.maxfps" ms<br>
  * set to 0 ms to disable the feature
  * @public
- * @type Number
+ * @type {number}
  * @name throttlingInterval
- * @memberOf me.input
+ * @memberof input
  */
-export var throttlingInterval;
+export let throttlingInterval;
 
 /**
  * Translate the specified x and y values from the global (absolute)
  * coordinate to local (viewport) relative coordinate.
  * @name globalToLocal
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {Number} x the global x coordinate to be translated.
- * @param {Number} y the global y coordinate to be translated.
- * @param {Number} [v] an optional vector object where to set the
- * @return {me.Vector2d} A vector object with the corresponding translated coordinates.
+ * @param {number} x - the global x coordinate to be translated.
+ * @param {number} y - the global y coordinate to be translated.
+ * @param {Vector2d} [v] - an optional vector object where to set the translated coordinates
+ * @returns {Vector2d} A vector object with the corresponding translated coordinates
  * @example
  * onMouseEvent : function (pointer) {
  *    // convert the given into local (viewport) relative coordinates
- *    var pos = me.input.globalToLocal(pointer.clientX, pointer.clientY);
+ *    let pos = me.input.globalToLocal(pointer.clientX, pointer.clientY);
  *    // do something with pos !
  * };
  */
 export function globalToLocal(x, y, v) {
-    v = v || new Vector2d();
-    var rect = device.getElementBounds(renderer.getScreenCanvas());
-    var pixelRatio = device.devicePixelRatio;
-    x -= rect.left + (window.pageXOffset || 0);
-    y -= rect.top + (window.pageYOffset || 0);
-    var scale = scaleRatio;
+    v = v || pool.pull("Vector2d");
+    let rect = device.getElementBounds(renderer.getCanvas());
+    let pixelRatio = globalThis.devicePixelRatio || 1;
+    x -= rect.left + (globalThis.pageXOffset || 0);
+    y -= rect.top + (globalThis.pageYOffset || 0);
+    let scale = renderer.scaleRatio;
     if (scale.x !== 1.0 || scale.y !== 1.0) {
         x /= scale.x;
         y /= scale.y;
     }
     return v.set(x * pixelRatio, y * pixelRatio);
-};
+}
 
 /**
  * enable/disable all gestures on the given element.<br>
  * by default melonJS will disable browser handling of all panning and zooming gestures.
  * @name setTouchAction
- * @memberOf me.input
+ * @memberof input
  * @see https://developer.mozilla.org/en-US/docs/Web/CSS/touch-action
  * @public
- * @function
  * @param {HTMLCanvasElement} element
- * @param {String} [value="none"]
+ * @param {string} [value="none"]
  */
 export function setTouchAction(element, value) {
     element.style["touch-action"] = value || "none";
-};
+}
 
 /**
  * Associate a pointer event to a keycode<br>
@@ -578,11 +573,10 @@ export function setTouchAction(element, value) {
  * Middle button – 1
  * Right button – 2
  * @name bindPointer
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {Number} [button=me.input.pointer.LEFT] (accordingly to W3C values : 0,1,2 for left, middle and right buttons)
- * @param {me.input.KEY} keyCode
+ * @param {number} [button=input.pointer.LEFT] - (accordingly to W3C values : 0,1,2 for left, middle and right buttons)
+ * @param {input.KEY} keyCode
  * @example
  * // enable the keyboard
  * me.input.bindKey(me.input.KEY.X, "shoot");
@@ -592,8 +586,8 @@ export function setTouchAction(element, value) {
  * me.input.bindPointer(me.input.pointer.RIGHT, me.input.KEY.X);
  */
 export function bindPointer() {
-    var button = (arguments.length < 2) ? pointer.LEFT : arguments[0];
-    var keyCode = (arguments.length < 2) ? arguments[0] : arguments[1];
+    let button = (arguments.length < 2) ? pointer.LEFT : arguments[0];
+    let keyCode = (arguments.length < 2) ? arguments[0] : arguments[1];
 
     // make sure the mouse is initialized
     enablePointerEvent();
@@ -604,15 +598,14 @@ export function bindPointer() {
     }
     // map the mouse button to the keycode
     pointer.bind[button] = keyCode;
-};
+}
 
 /**
  * unbind the defined keycode
  * @name unbindPointer
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {Number} [button=me.input.pointer.LEFT] (accordingly to W3C values : 0,1,2 for left, middle and right buttons)
+ * @param {number} [button=input.pointer.LEFT] - (accordingly to W3C values : 0,1,2 for left, middle and right buttons)
  * @example
  * me.input.unbindPointer(me.input.pointer.LEFT);
  */
@@ -622,19 +615,18 @@ export function unbindPointer(button) {
         typeof(button) === "undefined" ?
         pointer.LEFT : button
     ] = null;
-};
+}
 
 
 /**
  * allows registration of event listeners on the object target. <br>
  * melonJS will pass a me.Pointer object to the defined callback.
- * @see me.Pointer
+ * @see Pointer
  * @see {@link http://www.w3.org/TR/pointerevents/#list-of-pointer-events|W3C Pointer Event list}
  * @name registerPointerEvent
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {String} eventType The event type for which the object is registering <br>
+ * @param {string} eventType - The event type for which the object is registering <br>
  * melonJS currently supports: <br>
  * <ul>
  *   <li><code>"pointermove"</code></li>
@@ -646,14 +638,14 @@ export function unbindPointer(button) {
  *   <li><code>"pointercancel"</code></li>
  *   <li><code>"wheel"</code></li>
  * </ul>
- * @param {me.Rect|me.Polygon|me.Line|me.Ellipse} region a shape representing the region to register on
- * @param {Function} callback methods to be called when the event occurs.
+ * @param {Rect|Polygon|Line|Ellipse} region - a shape representing the region to register on
+ * @param {Function} callback - methods to be called when the event occurs.
  * Returning `false` from the defined callback will prevent the event to be propagated to other objects
  * @example
  *  // onActivate function
  *  onActivateEvent: function () {
  *     // register on the 'pointerdown' event
- *     me.input.registerPointerEvent('pointerdown', this, this.pointerDown.bind(this));
+ *     me.input.registerPointerEvent('pointerdown', this, (e) => this.pointerDown(e));
  *  },
  *
  *  // pointerDown event callback
@@ -676,7 +668,7 @@ export function registerPointerEvent(eventType, region, callback) {
         throw new Error("registerPointerEvent: region for " + toString(region) + " event is undefined ");
     }
 
-    var eventTypes = findAllActiveEvents(activeEventList, pointerEventMap[eventType]);
+    let eventTypes = findAllActiveEvents(activeEventList, pointerEventMap[eventType]);
 
     // register the event
     if (!eventHandlers.has(region)) {
@@ -688,27 +680,26 @@ export function registerPointerEvent(eventType, region, callback) {
     }
 
     // allocate array if not defined
-    var handlers = eventHandlers.get(region);
-    for (var i = 0; i < eventTypes.length; i++) {
-        eventType = eventTypes[i];
+    let handlers = eventHandlers.get(region);
+    for (let i = 0; i < eventTypes.length; i++) {
+        const eventType = eventTypes[i];
         if (handlers.callbacks[eventType]) {
             handlers.callbacks[eventType].push(callback);
         } else {
             handlers.callbacks[eventType] = [callback];
         }
     }
-};
+}
 
 /**
  * allows the removal of event listeners from the object target.
  * @see {@link http://www.w3.org/TR/pointerevents/#list-of-pointer-events|W3C Pointer Event list}
  * @name releasePointerEvent
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {String} eventType The event type for which the object was registered. See {@link me.input.registerPointerEvent}
- * @param {me.Rect|me.Polygon|me.Line|me.Ellipse} region the registered region to release for this event
- * @param {Function} [callback="all"] if specified unregister the event only for the specific callback
+ * @param {string} eventType - The event type for which the object was registered. See {@link input.registerPointerEvent}
+ * @param {Rect|Polygon|Line|Ellipse} region - the registered region to release for this event
+ * @param {Function} [callback="all"] - if specified unregister the event only for the specific callback
  * @example
  * // release the registered region on the 'pointerdown' event
  * me.input.releasePointerEvent('pointerdown', this);
@@ -719,15 +710,15 @@ export function releasePointerEvent(eventType, region, callback) {
     }
 
     // convert to supported event type if pointerEvent not natively supported
-    var eventTypes = findAllActiveEvents(activeEventList, pointerEventMap[eventType]);
+    let eventTypes = findAllActiveEvents(activeEventList, pointerEventMap[eventType]);
 
-    var handlers = eventHandlers.get(region);
+    let handlers = eventHandlers.get(region);
     if (typeof (handlers) !== "undefined") {
-        for (var i = 0; i < eventTypes.length; i++) {
-            eventType = eventTypes[i];
+        for (let i = 0; i < eventTypes.length; i++) {
+            const eventType = eventTypes[i];
             if (handlers.callbacks[eventType]) {
                 if (typeof (callback) !== "undefined") {
-                    utils.array.remove(handlers.callbacks[eventType], callback);
+                    remove(handlers.callbacks[eventType], callback);
                 } else {
                     while (handlers.callbacks[eventType].length > 0) {
                         handlers.callbacks[eventType].pop();
@@ -743,23 +734,61 @@ export function releasePointerEvent(eventType, region, callback) {
             eventHandlers.delete(region);
         }
     }
-};
+}
 
 /**
  * allows the removal of all registered event listeners from the object target.
  * @name releaseAllPointerEvents
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {me.Rect|me.Polygon|me.Line|me.Ellipse} region the registered region to release event from
+ * @param {Rect|Polygon|Line|Ellipse} region - the registered region to release event from
  * @example
  * // release all registered event on the
  * me.input.releaseAllPointerEvents(this);
  */
 export function releaseAllPointerEvents(region) {
     if (eventHandlers.has(region)) {
-        for (var i = 0; i < pointerEventList.length; i++) {
-            this.releasePointerEvent(pointerEventList[i], region);
+        for (let i = 0; i < pointerEventList.length; i++) {
+            releasePointerEvent(pointerEventList[i], region);
         }
-    };
-};
+    }
+}
+
+/**
+ * request for the pointer to be locked on the parent DOM element.
+ * (Must be called in a click event or an event that requires user interaction)
+ * @name requestPointerLock
+ * @memberof input
+ * @public
+ * @returns {boolean} return true if the request was successfully submitted
+ * @example
+ * // register on the pointer lock change event
+ * event.on(event.POINTERLOCKCHANGE, (locked)=> {
+ *     console.log("pointer lock: " + locked);
+ * });
+ * // request for pointer lock
+ * me.input.requestPointerLock();
+ */
+export function requestPointerLock() {
+    if (device.hasPointerLockSupport) {
+        let element = game.getParentElement();
+        element.requestPointerLock();
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Initiates an exit from pointer lock state
+ * @name exitPointerLock
+ * @memberof input
+ * @public
+ * @returns {boolean} return true if the request was successfully submitted
+ */
+export function exitPointerLock() {
+    if (device.hasPointerLockSupport) {
+        document.exitPointerLock();
+        return true;
+    }
+    return false;
+}

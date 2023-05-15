@@ -7,8 +7,6 @@ import { clamp } from "./../../math/math.js";
  * @classdesc
  * object group definition as defined in Tiled.
  * (group definition is translated into the virtual `me.game.world` using `me.Container`)
- * @class TMXGroup
- * @constructor
  * @ignore
  */
 export default class TMXGroup {
@@ -17,86 +15,71 @@ export default class TMXGroup {
 
         /**
          * group name
-         * @public
-         * @type String
-         * @name name
-         * @memberOf me.TMXGroup
+         * @type {string}
          */
         this.name = data.name;
 
         /**
          * group width
-         * @public
-         * @type Number
-         * @name width
-         * @memberOf me.TMXGroup
+         * @type {number}
          */
         this.width = data.width || 0;
 
         /**
          * group height
-         * @public
-         * @type Number
-         * @name height
-         * @memberOf me.TMXGroup
+         * @type {number}
          */
         this.height = data.height || 0;
 
         /**
          * tint color
-         * @public
-         * @type String
-         * @name tintcolor
-         * @memberOf me.TMXGroup
+         * @type {string}
          */
         this.tintcolor = data.tintcolor;
 
+
+        /**
+         * the group class
+         * @type {string}
+         */
+        this.class = data.class;
+
         /**
          * group z order
-         * @public
-         * @type Number
-         * @name z
-         * @memberOf me.TMXGroup
+         * @type {number}
          */
         this.z = z;
 
         /**
          * group objects list definition
-         * @see me.TMXObject
-         * @public
-         * @type Array
-         * @name name
-         * @memberOf me.TMXGroup
+         * @see TMXObject
+         * @type {object[]}
          */
         this.objects = [];
 
-        var visible = typeof(data.visible) !== "undefined" ? data.visible : true;
+        let visible = typeof(data.visible) !== "undefined" ? data.visible : true;
         this.opacity = (visible === true) ? clamp(+data.opacity || 1.0, 0.0, 1.0) : 0;
 
         // check if we have any user-defined properties
         applyTMXProperties(this, data);
 
         // parse all child objects/layers
-        var self = this;
-
         if (data.objects) {
-            var _objects = data.objects;
-            _objects.forEach(function (object) {
-                object.tintcolor = self.tintcolor;
-                self.objects.push(new TMXObject(map, object, z));
+            data.objects.forEach((object) => {
+                object.tintcolor = this.tintcolor;
+                this.objects.push(new TMXObject(map, object, z));
             });
         }
 
         if (data.layers) {
-            var _layers = data.layers;
-            _layers.forEach(function (data) {
-                var layer = new TMXLayer(map, data, map.tilewidth, map.tileheight, map.orientation, map.tilesets, z++);
+            data.layers.forEach((data) => {
+                let layer = new TMXLayer(map, data, map.tilewidth, map.tileheight, map.orientation, map.tilesets, z++);
                 // set a renderer
                 layer.setRenderer(map.getRenderer());
                 // resize container accordingly
-                self.width = Math.max(self.width, layer.width);
-                self.height = Math.max(self.height, layer.height);
-                self.objects.push(layer);
+                this.width = Math.max(this.width, layer.width);
+                this.height = Math.max(this.height, layer.height);
+                this.objects.push(layer);
             });
         }
     }
@@ -104,9 +87,7 @@ export default class TMXGroup {
     /**
      * reset function
      * @ignore
-     * @function
      */
-
     destroy() {
         // clear all allocated objects
         this.objects = null;
@@ -115,7 +96,6 @@ export default class TMXGroup {
     /**
      * return the object count
      * @ignore
-     * @function
      */
     getObjectCount() {
         return this.objects.length;
@@ -124,9 +104,8 @@ export default class TMXGroup {
     /**
      * returns the object at the specified index
      * @ignore
-     * @function
      */
     getObjectByIndex(idx) {
         return this.objects[idx];
     }
-};
+}

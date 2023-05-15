@@ -1,63 +1,51 @@
-import Vector2d from "./../math/vector2.js";
-import Rect from "./../shapes/rectangle.js";
-import Ellipse from "./../shapes/ellipse.js";
-import Polygon from "./../shapes/poly.js";
+import Rect from "./../geometries/rectangle.js";
+import Ellipse from "./../geometries/ellipse.js";
+import Polygon from "./../geometries/poly.js";
 import Bounds from "./bounds.js";
+import pool from "./../system/pooling.js";
 import collision from "./collision.js";
-import utils from "./../utils/utils.js";
+import * as arrayUtil from "./../utils/array.js";
 import timer from "./../system/timer.js";
 import { clamp } from "./../math/math.js";
-import { world } from "./../game.js";
-
+import Point from "../geometries/point.js";
 
 /**
- * a Generic Body Object with some physic properties and behavior functionality<br>
- The body object is attached as a member of a Renderable.  The Body object can handle movements of the parent with
- the body.update call.  It is important to know that when body.update is called there are several things that happen related to
- the movement and positioning of the parent renderable object.  1) The force/gravity/friction parameters are used
- to calculate a new velocity and 2) the parent position is updated by adding this to the parent.pos (position me.Vector2d)
- value. Thus Affecting the movement of the parent.  Look at the source code for /src/physics/body.js:update (me.Body.update) for
- a better understanding.
- * @class Body
- * @memberOf me
- * @constructor
- * @param {me.Renderable} ancestor the parent object this body is attached to
- * @param {me.Rect|me.Rect[]|me.Polygon|me.Polygon[]|me.Line|me.Line[]|me.Ellipse|me.Ellipse[]|me.Bounds|me.Bounds[]|Object} [shapes] a initial shape, list of shapes, or JSON object defining the body
- * @param {Function} [onBodyUpdate] callback for when the body is updated (e.g. add/remove shapes)
+ * @classdesc
+ * a Generic Physic Body Object with some physic properties and behavior functionality, to as a member of a Renderable.
+ * @see Renderable.body
  */
-class Body {
-
-    constructor(parent, shapes, onBodyUpdate) {
+ export default class Body {
+    /**
+     * @param {Renderable|Container|Entity|Sprite|NineSliceSprite} ancestor - the parent object this body is attached to
+     * @param {Rect|Rect[]|Polygon|Polygon[]|Line|Line[]|Ellipse|Ellipse[]|Point|Point[]|Bounds|Bounds[]|object} [shapes] - a initial shape, list of shapes, or JSON object defining the body
+     * @param {Function} [onBodyUpdate] - callback for when the body is updated (e.g. add/remove shapes)
+     */
+    constructor(ancestor, shapes, onBodyUpdate) {
 
         /**
          * a reference to the parent object that contains this body,
          * or undefined if it has not been added to one.
          * @public
-         * @type me.Renderable
+         * @type {Renderable|Container|Entity|Sprite|NineSliceSprite}
          * @default undefined
-         * @name me.Body#ancestor
          */
-        this.ancestor = parent;
+        this.ancestor = ancestor;
 
-        /**
-         * The AABB bounds box reprensenting this body
-         * @public
-         * @type {me.Bounds}
-         * @name bounds
-         * @memberOf me.Body
-         */
         if (typeof this.bounds === "undefined") {
-            this.bounds = new Bounds();
+            /**
+             * The AABB bounds box reprensenting this body
+             * @public
+             * @type {Bounds}
+             */
+            this.bounds = pool.pull("Bounds");
         }
 
-        /**
-         * The collision shapes of the body
-         * @ignore
-         * @type {me.Polygon[]|me.Line[]|me.Ellipse[]}
-         * @name shapes
-         * @memberOf me.Body
-         */
         if (typeof this.shapes === "undefined") {
+            /**
+             * The collision shapes of the body
+             * @ignore
+             * @type {Polygon[]|Line[]|Ellipse[]|Point|Point[]}
+             */
             this.shapes = [];
         }
 
@@ -65,83 +53,72 @@ class Body {
          * The body collision mask, that defines what should collide with what.<br>
          * (by default will collide with all entities)
          * @ignore
-         * @type Number
-         * @default me.collision.types.ALL_OBJECT
-         * @name collisionMask
-         * @see me.collision.types
-         * @memberOf me.Body
+         * @type {number}
+         * @default collision.types.ALL_OBJECT
+         * @see collision.types
          */
         this.collisionMask = collision.types.ALL_OBJECT;
 
         /**
          * define the collision type of the body for collision filtering
          * @public
-         * @type Number
-         * @default me.collision.types.ENEMY_OBJECT
-         * @name collisionType
-         * @see me.collision.types
-         * @memberOf me.Body
+         * @type {number}
+         * @default collision.types.ENEMY_OBJECT
+         * @see collision.types
          * @example
          * // set the body collision type
-         * myEntity.body.collisionType = me.collision.types.PLAYER_OBJECT;
+         * body.collisionType = me.collision.types.PLAYER_OBJECT;
          */
         this.collisionType = collision.types.ENEMY_OBJECT;
 
-        /**
-         * body velocity
-         * @public
-         * @type me.Vector2d
-         * @default <0,0>
-         * @name vel
-         * @memberOf me.Body
-         */
         if (typeof this.vel === "undefined") {
-            this.vel = new Vector2d();
+            /**
+             * The current velocity of the body.
+             * See to apply a force if you need to modify a body velocity
+             * @see Body.force
+             * @public
+             * @type {Vector2d}
+             * @default <0,0>
+             */
+            this.vel = pool.pull("Vector2d");
         }
         this.vel.set(0, 0);
 
-        /**
-         * body force or acceleration (automatically) applied to the body.
-         * when defining a force, user should also define a max velocity
-         * @public
-         * @type me.Vector2d
-         * @default <0,0>
-         * @name force
-         * @see me.Body.setMaxVelocity
-         * @memberOf me.Body
-         * @example
-         * // define a default maximum acceleration, initial force and friction
-         * this.body.force.set(0, 0);
-         * this.body.friction.set(0.4, 0);
-         * this.body.setMaxVelocity(3, 15);
-         *
-         * // apply a postive or negative force when pressing left of right key
-         * update(dt) {
-         *     if (me.input.isKeyPressed("left"))    {
-         *          this.body.force.x = -this.body.maxVel.x;
-         *      } else if (me.input.isKeyPressed("right")) {
-         *         this.body.force.x = this.body.maxVel.x;
-         *     } else {
-         *         this.body.force.x = 0;
-         *     }
-         * }
-         */
         if (typeof this.force === "undefined") {
-            this.force = new Vector2d();
+            /**
+             * body force to apply to this the body in the current step.
+             * (any positive or negative force will be cancelled after every world/body update cycle)
+             * @public
+             * @type {Vector2d}
+             * @default <0,0>
+             * @see Body.setMaxVelocity
+             * @example
+             * // define a default maximum acceleration, initial force and friction
+             * this.body.force.set(1, 0);
+             * this.body.friction.set(0.4, 0);
+             * this.body.setMaxVelocity(3, 15);
+             *
+             * // apply a postive or negative force when pressing left of right key
+             * update(dt) {
+             *     if (me.input.isKeyPressed("left"))    {
+             *          this.body.force.x = -this.body.maxVel.x;
+             *      } else if (me.input.isKeyPressed("right")) {
+             *         this.body.force.x = this.body.maxVel.x;
+             *     }
+             * }
+             */
+            this.force = pool.pull("Vector2d");
         }
         this.force.set(0, 0);
 
-
-        /**
-         * body friction
-         * @public
-         * @type me.Vector2d
-         * @default <0,0>
-         * @name friction
-         * @memberOf me.Body
-         */
         if (typeof this.friction === "undefined") {
-            this.friction = new Vector2d();
+            /**
+             * body friction
+             * @public
+             * @type {Vector2d}
+             * @default <0,0>
+             */
+            this.friction = pool.pull("Vector2d");
         }
         this.friction.set(0, 0);
 
@@ -149,56 +126,58 @@ class Body {
          * the body bouciness level when colliding with other solid bodies :
          * a value of 0 will not bounce, a value of 1 will fully rebound.
          * @public
-         * @type {Number}
+         * @type {number}
          * @default 0
-         * @name bounce
-         * @memberOf me.Body
          */
         this.bounce = 0;
 
         /**
          * the body mass
          * @public
-         * @type {Number}
+         * @type {number}
          * @default 1
-         * @name mass
-         * @memberOf me.Body
          */
         this.mass = 1;
 
-        /**
-         * max velocity (to limit body velocity)
-         * @public
-         * @type me.Vector2d
-         * @default <490,490>
-         * @name maxVel
-         * @memberOf me.Body
-         */
         if (typeof this.maxVel === "undefined") {
-            this.maxVel = new Vector2d();
+            /**
+             * max velocity (to limit body velocity)
+             * @public
+             * @type {Vector2d}
+             * @default <490,490>
+             */
+            this.maxVel = pool.pull("Vector2d");
         }
         // cap by default to half the default gravity force
         this.maxVel.set(490, 490);
 
+
+        /**
+         * Either this body is a static body or not.
+         * A static body is completely fixed and can never change position or angle.
+         * @readonly
+         * @public
+         * @type {boolean}
+         * @default false
+         */
+        this.isStatic = false;
+
+
         /**
          * The degree to which this body is affected by the world gravity
          * @public
-         * @see me.World.gravity
-         * @type Number
+         * @see World.gravity
+         * @type {number}
          * @default 1.0
-         * @name gravityScale
-         * @memberOf me.Body
          */
         this.gravityScale = 1.0;
 
         /**
          * If true this body won't be affected by the world gravity
          * @public
-         * @see me.World.gravity
-         * @type Boolean
+         * @see World.gravity
+         * @type {boolean}
          * @default false
-         * @name ignoreGravity
-         * @memberOf me.Body
          */
         this.ignoreGravity = false;
 
@@ -208,10 +187,8 @@ class Body {
          * false if the object is standing on something<br>
          * @readonly
          * @public
-         * @type Boolean
+         * @type {boolean}
          * @default false
-         * @name falling
-         * @memberOf me.Body
          */
         this.falling = false;
 
@@ -220,10 +197,8 @@ class Body {
          * equal true if the body is jumping<br>
          * @readonly
          * @public
-         * @type Boolean
+         * @type {boolean}
          * @default false
-         * @name jumping
-         * @memberOf me.Body
          */
         this.jumping = false;
 
@@ -237,7 +212,7 @@ class Body {
         // parses the given shapes array and add them
         if (typeof shapes !== "undefined") {
             if (Array.isArray(shapes)) {
-                for (var s = 0; s < shapes.length; s++) {
+                for (let s = 0; s < shapes.length; s++) {
                     this.addShape(shapes[s]);
                 }
             } else {
@@ -250,14 +225,19 @@ class Body {
     }
 
     /**
+     * set the body as a static body
+     * static body do not move automatically and do not check againt collision with others
+     * @param {boolean} [isStatic=true]
+     */
+    setStatic(isStatic = true) {
+        this.isStatic = isStatic === true;
+    }
+
+    /**
      * add a collision shape to this body <br>
      * (note: me.Rect objects will be converted to me.Polygon before being added)
-     * @name addShape
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @param {me.Rect|me.Polygon|me.Line|me.Ellipse|me.Bounds|Object} shape a shape or JSON object
-     * @return {Number} the shape array length
+     * @param {Rect|Polygon|Line|Ellipse|Point|Point[]|Bounds|object} shape - a shape or JSON object
+     * @returns {number} the shape array length
      * @example
      * // add a rectangle shape
      * this.body.addShape(new me.Rect(0, 0, image.width, image.height));
@@ -266,7 +246,7 @@ class Body {
      */
     addShape(shape) {
         if (shape instanceof Rect || shape instanceof Bounds) {
-            var poly = shape.toPolygon();
+            let poly = shape.toPolygon();
             this.shapes.push(poly);
             // update the body bounds
             this.bounds.add(poly.points);
@@ -291,6 +271,12 @@ class Body {
             // update the body bounds
             this.bounds.add(shape.points);
             this.bounds.translate(shape.pos);
+        } else if (shape instanceof Point) {
+            if (!this.shapes.includes(shape)) {
+                // see removeShape
+                this.shapes.push(shape);
+            }
+            this.bounds.addPoint(shape);
         } else {
             // JSON object
             this.fromJSON(shape);
@@ -306,21 +292,17 @@ class Body {
 
     /**
      * set the body vertices to the given one
-     * @name setVertices
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @param {me.Vector2d[]} vertices an array of me.Vector2d points defining a convex hull
-     * @param {Number} [index=0] the shape object for which to set the vertices
-     * @param {boolean} [clear=true] either to reset the body definition before adding the new vertices
+     * @param {Vector2d[]} vertices - an array of me.Vector2d points defining a convex hull
+     * @param {number} [index=0] - the shape object for which to set the vertices
+     * @param {boolean} [clear=true] - either to reset the body definition before adding the new vertices
      */
     setVertices(vertices, index = 0, clear = true) {
-        var polygon = this.getShape(index);
+        let polygon = this.getShape(index);
         if (polygon instanceof Polygon) {
             polygon.setShape(0, 0, vertices);
         } else {
             // this will replace any other non polygon shape type if defined
-            this.shapes[index] = new Polygon(0, 0, vertices);
+            this.shapes[index] = pool.pull("Polygon", 0, 0, vertices);
         }
 
         // update the body bounds to take in account the new vertices
@@ -333,12 +315,8 @@ class Body {
 
     /**
      * add the given vertices to the body shape
-     * @name addVertices
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @param {me.Vector2d[]} vertices an array of me.Vector2d points defining a convex hull
-     * @param {Number} [index=0] the shape object for which to set the vertices
+     * @param {Vector2d[]} vertices - an array of me.Vector2d points defining a convex hull
+     * @param {number} [index=0] - the shape object for which to set the vertices
      */
     addVertices(vertices, index = 0) {
         this.setVertices(vertices, index, false);
@@ -347,14 +325,10 @@ class Body {
     /**
      * add collision mesh based on a JSON object
      * (this will also apply any physic properties defined in the given JSON file)
-     * @name fromJSON
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @param {Object} json a JSON object as exported from a Physics Editor tool
-     * @param {String} [id] an optional shape identifier within the given the json object
+     * @param {object} json - a JSON object as exported from a Physics Editor tool
+     * @param {string} [id] - an optional shape identifier within the given the json object
      * @see https://www.codeandweb.com/physicseditor
-     * @return {Number} how many shapes were added to the body
+     * @returns {number} how many shapes were added to the body
      * @example
      * // define the body based on the banana shape
      * this.body.fromJSON(me.loader.getJSON("shapesdef").banana);
@@ -362,7 +336,7 @@ class Body {
      * this.body.fromJSON(me.loader.getJSON("shapesdef"), "banana");
      */
     fromJSON(json, id) {
-        var data = json;
+        let data = json;
 
         if (typeof id !== "undefined" ) {
             data = json[id];
@@ -375,7 +349,7 @@ class Body {
 
         if (data.length) {
             // go through all shapes and add them to the body
-            for (var i = 0; i < data.length; i++) {
+            for (let i = 0; i < data.length; i++) {
                 this.addVertices(data[i].shape, i);
             }
             // apply density, friction and bounce properties from the first shape
@@ -391,12 +365,8 @@ class Body {
 
     /**
      * return the collision shape at the given index
-     * @name getShape
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @param {Number} [index=0] the shape object at the specified index
-     * @return {me.Polygon|me.Line|me.Ellipse} shape a shape object if defined
+     * @param {number} [index=0] - the shape object at the specified index
+     * @returns {Polygon|Line|Ellipse} shape a shape object if defined
      */
     getShape(index) {
         return this.shapes[index || 0];
@@ -404,10 +374,7 @@ class Body {
 
     /**
      * returns the AABB bounding box for this body
-     * @name getBounds
-     * @memberOf me.Body
-     * @function
-     * @return {me.Bounds} bounding box Rectangle object
+     * @returns {Bounds} bounding box Rectangle object
      */
     getBounds() {
         return this.bounds;
@@ -415,20 +382,16 @@ class Body {
 
     /**
      * remove the specified shape from the body shape list
-     * @name removeShape
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @param {me.Polygon|me.Line|me.Ellipse} shape a shape object
-     * @return {Number} the shape array length
+     * @param {Polygon|Line|Ellipse} shape - a shape object
+     * @returns {number} the shape array length
      */
     removeShape(shape) {
         // clear the current bounds
         this.bounds.clear();
         // remove the shape from shape list
-        utils.array.remove(this.shapes, shape);
+        arrayUtil.remove(this.shapes, shape);
         // add everything left back
-        for (var s = 0; s < this.shapes.length; s++) {
+        for (let s = 0; s < this.shapes.length; s++) {
             this.addShape(this.shapes[s]);
         }
         // return the length of the shape list
@@ -437,33 +400,25 @@ class Body {
 
     /**
      * remove the shape at the given index from the body shape list
-     * @name removeShapeAt
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @param {Number} index the shape object at the specified index
-     * @return {Number} the shape array length
+     * @param {number} index - the shape object at the specified index
+     * @returns {number} the shape array length
      */
     removeShapeAt(index) {
         return this.removeShape(this.getShape(index));
     }
 
     /**
-     * By default all entities are able to collide with all other entities, <br>
+     * By default all physic bodies are able to collide with all other bodies, <br>
      * but it's also possible to specify 'collision filters' to provide a finer <br>
-     * control over which entities can collide with each other.
-     * @name setCollisionMask
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @see me.collision.types
-     * @param {Number} [bitmask = me.collision.types.ALL_OBJECT] the collision mask
+     * control over which body can collide with each other.
+     * @see collision.types
+     * @param {number} [bitmask = collision.types.ALL_OBJECT] - the collision mask
      * @example
      * // filter collision detection with collision shapes, enemies and collectables
-     * myEntity.body.setCollisionMask(me.collision.types.WORLD_SHAPE | me.collision.types.ENEMY_OBJECT | me.collision.types.COLLECTABLE_OBJECT);
+     * body.setCollisionMask(me.collision.types.WORLD_SHAPE | me.collision.types.ENEMY_OBJECT | me.collision.types.COLLECTABLE_OBJECT);
      * ...
      * // disable collision detection with all other objects
-     * myEntity.body.setCollisionMask(me.collision.types.NO_OBJECT);
+     * body.setCollisionMask(me.collision.types.NO_OBJECT);
      */
     setCollisionMask(bitmask = collision.types.ALL_OBJECT) {
         this.collisionMask = bitmask;
@@ -471,15 +426,11 @@ class Body {
 
     /**
      * define the collision type of the body for collision filtering
-     * @name setCollisionType
-     * @memberOf me.Body
-     * @public
-     * @function
-     * @see me.collision.types
-     * @param {Number} type the collision type
+     * @see collision.types
+     * @param {number} type - the collision type
      * @example
      * // set the body collision type
-     * myEntity.body.collisionType = me.collision.types.PLAYER_OBJECT;
+     * body.collisionType = me.collision.types.PLAYER_OBJECT;
      */
     setCollisionType(type) {
         if (typeof type !== "undefined") {
@@ -493,15 +444,11 @@ class Body {
 
     /**
      * the built-in function to solve the collision response
-     * @protected
-     * @name respondToCollision
-     * @memberOf me.Body
-     * @function
-     * @param {me.collision.ResponseObject} response the collision response object
+     * @param {object} response - the collision response object (see {@link ResponseObject})
      */
     respondToCollision(response) {
         // the overlap vector
-        var overlap = response.overlapV;
+        let overlap = response.overlapV;
 
         // FIXME: Respond proportionally to object mass
 
@@ -521,10 +468,12 @@ class Body {
                 this.vel.y *= -this.bounce;
             }
 
-            // cancel the falling an jumping flags if necessary
-            var dir = Math.sign(world.gravity.y * this.gravityScale) || 1;
-            this.falling = overlap.y >= dir;
-            this.jumping = overlap.y <= -dir;
+            if (!this.ignoreGravity) {
+                // cancel the falling an jumping flags if necessary
+                let dir = this.falling === true ? 1 : this.jumping === true ? -1 : 0;
+                this.falling = overlap.y >= dir;
+                this.jumping = overlap.y <= -dir;
+            }
         }
     }
 
@@ -534,11 +483,8 @@ class Body {
      *    - The current element being processed in the array <br>
      *    - The index of element in the array. <br>
      *    - The array forEach() was called upon. <br>
-     * @name forEach
-     * @memberOf me.Body.prototype
-     * @function
-     * @param {Function} callback fnction to execute on each element
-     * @param {Object} [thisArg] value to use as this(i.e reference Object) when executing callback.
+     * @param {Function} callback - fnction to execute on each element
+     * @param {object} [thisArg] - value to use as this(i.e reference Object) when executing callback.
      * @example
      * // iterate through all shapes of the physic body
      * mySprite.body.forEach((shape) => {
@@ -549,10 +495,10 @@ class Body {
      * mySprite.body.forEach((shape, index, array) => { ... }, thisArg);
      */
     forEach(callback, thisArg) {
-        var context = this, i = 0;
-        var shapes = this.shapes;
+        let context = this, i = 0;
+        let shapes = this.shapes;
 
-        var len = shapes.length;
+        let len = shapes.length;
 
         if (typeof callback !== "function") {
             throw new Error(callback + " is not a function");
@@ -568,27 +514,20 @@ class Body {
         }
     }
 
-
     /**
      * Returns true if the any of the shape composing the body contains the given point.
-     * @name contains
-     * @memberOf me.Body
-     * @function
-     * @param  {me.Vector2d} point
-     * @return {boolean} true if contains
+     * @method Body#contains
+     * @param {Vector2d} point
+     * @returns {boolean} true if contains
      */
-
     /**
      * Returns true if the any of the shape composing the body contains the given point.
-     * @name contains
-     * @memberOf me.Body
-     * @function
-     * @param  {Number} x x coordinate
-     * @param  {Number} y y coordinate
-     * @return {boolean} true if contains
+     * @param  {number} x -  x coordinate
+     * @param  {number} y -  y coordinate
+     * @returns {boolean} true if contains
      */
     contains() {
-        var _x, _y;
+        let _x, _y;
 
         if (arguments.length === 2) {
           // x, y
@@ -602,11 +541,11 @@ class Body {
 
         if (this.getBounds().contains(_x, _y)) {
              // cannot use forEach here as cannot break out with a return
-             for (var i = this.shapes.length, shape; i--, (shape = this.shapes[i]);) {
+             for (let i = this.shapes.length, shape; i--, (shape = this.shapes[i]);) {
                 if (shape.contains(_x, _y)) {
                     return true;
                 }
-            };
+            }
         }
         return false;
     }
@@ -614,39 +553,36 @@ class Body {
     /**
      * Rotate this body (counter-clockwise) by the specified angle (in radians).
      * Unless specified the body will be rotated around its center point
-     * @name rotate
-     * @memberOf me.Body
-     * @function
-     * @param {Number} angle The angle to rotate (in radians)
-     * @param {me.Vector2d|me.ObservableVector2d} [v=me.Body.getBounds().center] an optional point to rotate around
-     * @return {me.Body} Reference to this object for method chaining
+     * @param {number} angle - The angle to rotate (in radians)
+     * @param {Vector2d|ObservableVector2d} [v=Body.getBounds().center] - an optional point to rotate around
+     * @returns {Body} Reference to this object for method chaining
      */
     rotate(angle, v = this.getBounds().center) {
-        this.bounds.clear();
-        this.forEach((shape) => {
-            shape.rotate(angle, v);
-            this.bounds.addBounds(shape.getBounds());
-            if (shape instanceof Ellipse) {
-                // use bounds position as ellipse position is center
-                this.bounds.translate(
-                    shape.getBounds().x,
-                    shape.getBounds().y
-                );
-            } else {
-                this.bounds.translate(shape.pos);
+        if (angle !== 0) {
+            this.bounds.clear();
+            this.forEach((shape) => {
+                shape.rotate(angle, v);
+                this.bounds.addBounds(shape.getBounds());
+                /*
+                if (!(shape instanceof Ellipse)) {
+                    // ellipse position is center
+                    this.bounds.translate(shape.pos);
+                }
+                */
+            });
+            /*
+            if (typeof this.onBodyUpdate === "function") {
+                this.onBodyUpdate(this);
             }
-        });
+            */
+        }
         return this;
     }
 
     /**
      * cap the body velocity (body.maxVel property) to the specified value<br>
-     * @name setMaxVelocity
-     * @memberOf me.Body
-     * @function
-     * @param {Number} x max velocity on x axis
-     * @param {Number} y max velocity on y axis
-     * @protected
+     * @param {number} x - max velocity on x axis
+     * @param {number} y - max velocity on y axis
      */
     setMaxVelocity(x, y) {
         this.maxVel.x = x;
@@ -655,100 +591,73 @@ class Body {
 
     /**
      * set the body default friction
-     * @name setFriction
-     * @memberOf me.Body
-     * @function
-     * @param {Number} x horizontal friction
-     * @param {Number} y vertical friction
-     * @protected
+     * @param {number} x - horizontal friction
+     * @param {number} y - vertical friction
      */
-    setFriction(x, y) {
-        this.friction.x = x || 0;
-        this.friction.y = y || 0;
-    }
-
-    /**
-     * apply friction to a vector
-     * @ignore
-     */
-    applyFriction(vel) {
-        var fx = this.friction.x * timer.tick,
-            nx = vel.x + fx,
-            x = vel.x - fx,
-            fy = this.friction.y * timer.tick,
-            ny = vel.y + fy,
-            y = vel.y - fy;
-
-        vel.x = (
-            (nx < 0) ? nx :
-            ( x > 0) ? x  : 0
-        );
-        vel.y = (
-            (ny < 0) ? ny :
-            ( y > 0) ? y  : 0
-        );
-    }
-
-    /**
-     * compute the new velocity value
-     * @ignore
-     */
-    computeVelocity(vel) {
-        // apply fore if defined
-        if (this.force.x) {
-            vel.x += this.force.x * timer.tick;
-        }
-        if (this.force.y) {
-            vel.y += this.force.y * timer.tick;
-        }
-
-        // apply friction
-        if (this.friction.x || this.friction.y) {
-            this.applyFriction(vel);
-        }
-
-        if (!this.ignoreGravity) {
-            var worldGravity = world.gravity;
-            // apply gravity if defined
-            vel.x += worldGravity.x * this.gravityScale * this.mass * timer.tick;
-            vel.y += worldGravity.y * this.gravityScale * this.mass * timer.tick;
-            // check if falling / jumping
-            this.falling = (vel.y * Math.sign(worldGravity.y * this.gravityScale)) > 0;
-            this.jumping = (this.falling ? false : this.jumping);
-        }
-
-        // cap velocity
-        if (vel.y !== 0) {
-            vel.y = clamp(vel.y, -this.maxVel.y, this.maxVel.y);
-        }
-        if (vel.x !== 0) {
-            vel.x = clamp(vel.x, -this.maxVel.x, this.maxVel.x);
-        }
-
+    setFriction(x = 0, y = 0) {
+        this.friction.x = x;
+        this.friction.y = y;
     }
 
     /**
      * Updates the parent's position as well as computes the new body's velocity based
-     * on the values of force/friction/gravity.  Velocity chages are proportional to the
+     * on the values of force/friction.  Velocity chages are proportional to the
      * me.timer.tick value (which can be used to scale velocities).  The approach to moving the
-     * parent Entity is to compute new values of the Body.vel property then add them to
+     * parent renderable is to compute new values of the Body.vel property then add them to
      * the parent.pos value thus changing the postion the amount of Body.vel each time the
      * update call is made. <br>
      * Updates to Body.vel are bounded by maxVel (which defaults to viewport size if not set) <br>
-     *
-     * In addition, when the gravity calcuation is made, if the Body.vel.y > 0 then the Body.falling
-     * property is set to true and Body.jumping is set to !Body.falling.
-     *
-     * At this time a call to Body.Update does not call the onBodyUpdate callback that is listed in the init: function.
-     * @name update
-     * @memberOf me.Body
-     * @function
-     * @return {boolean} true if resulting velocity is different than 0
-     * @see source code for me.Body.computeVelocity (private member)
+     * At this time a call to Body.Update does not call the onBodyUpdate callback that is listed in the constructor arguments.
+     * @protected
+     * @param {number} dt - time since the last update in milliseconds.
+     * @returns {boolean} true if resulting velocity is different than 0
      */
-    update(/* dt */) {
-        // update the velocity
-        this.computeVelocity(this.vel);
+    update(dt) { // eslint-disable-line no-unused-vars
+        // apply timer.tick to delta time for linear interpolation (when enabled)
+        // #761 add delta time in body update
+        let deltaTime = /* dt * */ timer.tick;
+
+        // apply force if defined
+        if (this.force.x !== 0) {
+            this.vel.x += this.force.x * deltaTime;
+        }
+        if (this.force.y !== 0) {
+            this.vel.y += this.force.y * deltaTime;
+        }
+
+        // apply friction if defined
+        if (this.friction.x > 0) {
+            let fx = this.friction.x * deltaTime,
+                nx = this.vel.x + fx,
+                x = this.vel.x - fx;
+
+            this.vel.x = (
+                (nx < 0) ? nx :
+                ( x > 0) ? x  : 0
+            );
+        }
+        if (this.friction.y > 0) {
+            let fy = this.friction.y * deltaTime,
+                ny = this.vel.y + fy,
+                y = this.vel.y - fy;
+
+            this.vel.y = (
+                (ny < 0) ? ny :
+                ( y > 0) ? y  : 0
+            );
+        }
+
+        // cap velocity
+        if (this.vel.y !== 0) {
+            this.vel.y = clamp(this.vel.y, -this.maxVel.y, this.maxVel.y);
+        }
+        if (this.vel.x !== 0) {
+            this.vel.x = clamp(this.vel.x, -this.maxVel.x, this.maxVel.x);
+        }
+
+        // check if falling / jumping
+        this.falling = (this.vel.y * Math.sign(this.force.y)) > 0;
+        this.jumping = (this.falling ? false : this.jumping);
 
         // update the body ancestor position
         this.ancestor.pos.add(this.vel);
@@ -762,11 +671,28 @@ class Body {
      * @ignore
      */
     destroy() {
+        // push back instance into object pool
+        pool.push(this.bounds);
+        pool.push(this.vel);
+        pool.push(this.force);
+        pool.push(this.friction);
+        pool.push(this.maxVel);
+        this.shapes.forEach((shape) => {
+            pool.push(shape, false);
+        });
+
+        // set to undefined
         this.onBodyUpdate = undefined;
         this.ancestor = undefined;
         this.bounds = undefined;
+        this.vel = undefined;
+        this.force = undefined;
+        this.friction = undefined;
+        this.maxVel = undefined;
         this.shapes.length = 0;
-    }
-};
 
-export default Body;
+        // reset some variable to default
+        this.setStatic(false);
+    }
+}
+

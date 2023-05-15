@@ -1,13 +1,16 @@
 
 // bitmap constants
-var LOG2_PAGE_SIZE = 9;
-var PAGE_SIZE = 1 << LOG2_PAGE_SIZE;
+const LOG2_PAGE_SIZE = 9;
+const PAGE_SIZE = 1 << LOG2_PAGE_SIZE;
 
 /**
  * a glyph representing a single character in a font
  * @ignore
  */
-class Glyph {
+ export default class Glyph {
+    /**
+     * @ignore
+     */
     constructor() {
         this.id = 0;
         this.x = 0;
@@ -29,7 +32,7 @@ class Glyph {
      */
     getKerning(ch) {
         if (this.kerning) {
-            var page = this.kerning[ch >>> LOG2_PAGE_SIZE];
+            let page = this.kerning[ch >>> LOG2_PAGE_SIZE];
             if (page) {
                 return page[ch & PAGE_SIZE - 1] || 0;
             }
@@ -44,13 +47,11 @@ class Glyph {
         if (!this.kerning) {
             this.kerning = {};
         }
-        var page = this.kerning[ch >>> LOG2_PAGE_SIZE];
+        let page = this.kerning[ch >>> LOG2_PAGE_SIZE];
         if (typeof page === "undefined") {
             this.kerning[ch >>> LOG2_PAGE_SIZE] = {};
             page = this.kerning[ch >>> LOG2_PAGE_SIZE];
         }
         page[ch & PAGE_SIZE - 1] = value;
     }
-};
-
-export default Glyph;
+}

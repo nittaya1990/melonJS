@@ -1,3 +1,6 @@
+# Custom
+/tests/browser/public/lib/
+
 # Eclipse files
 .project
 .settings

@@ -1,39 +1,39 @@
 import { pauseTrack, resumeTrack } from "./../audio/audio.js";
-import utils from "./../utils/utils.js";
+import * as fctUtil from "./../utils/function.js";
 import * as event from "./../system/event.js";
-import timer from "./../system/timer.js";
-import * as game from "./../game.js";
+import { game } from "../index.js";
+import * as device from "./../system/device.js";
 import Stage from "./../state/stage.js";
-import defaultLoadingScreen from "./../loader/loadingscreen.js";
+import DefaultLoadingScreen from "./../loader/loadingscreen.js";
 
 
 // current state
-var _state = -1;
+let _state = -1;
 
 // requestAnimeFrame Id
-var _animFrameId = -1;
+let _animFrameId = -1;
 
 // whether the game state is "paused"
-var _isPaused = false;
+let _isPaused = false;
 
 // list of stages
-var _stages = {};
+let _stages = {};
 
 // fading transition parameters between screen
-var _fade = {
+let _fade = {
     color : "",
     duration : 0
 };
 
 // callback when state switch is done
 /** @ignore */
-var _onSwitchComplete = null;
+let _onSwitchComplete = null;
 
 // just to keep track of possible extra arguments
-var _extraArgs = null;
+let _extraArgs = null;
 
 // store the elapsed time during pause/stop period
-var _pauseTime = 0;
+let _pauseTime = 0;
 
 /**
  * @ignore
@@ -41,11 +41,8 @@ var _pauseTime = 0;
 function _startRunLoop() {
     // ensure nothing is running first and in valid state
     if ((_animFrameId === -1) && (_state !== -1)) {
-        // reset the timer
-        timer.reset();
-
         // start the main loop
-        _animFrameId = window.requestAnimationFrame(_renderFrame);
+        _animFrameId = globalThis.requestAnimationFrame(_renderFrame);
     }
 }
 
@@ -56,15 +53,12 @@ function _startRunLoop() {
 function _resumeRunLoop() {
     // ensure game is actually paused and in valid state
     if (_isPaused && (_state !== -1)) {
-        // reset the timer
-        timer.reset();
-
         _isPaused = false;
     }
 }
 
 /**
- * Pause the loop for most screen objects.
+ * Pause the loop for most stage objects.
  * @ignore
  */
 function _pauseRunLoop() {
@@ -74,18 +68,18 @@ function _pauseRunLoop() {
 
 /**
  * this is only called when using requestAnimFrame stuff
- * @param {Number} time current timestamp in milliseconds
+ * @param {number} time - current timestamp in milliseconds
  * @ignore
  */
 function _renderFrame(time) {
-    var stage = _stages[_state].stage;
+    let stage = _stages[_state].stage;
     // update all game objects
     game.update(time, stage);
     // render all game objects
     game.draw(stage);
     // schedule the next frame update
     if (_animFrameId !== -1) {
-        _animFrameId = window.requestAnimationFrame(_renderFrame);
+        _animFrameId = globalThis.requestAnimationFrame(_renderFrame);
     }
 }
 
@@ -95,7 +89,7 @@ function _renderFrame(time) {
  */
 function _stopRunLoop() {
     // cancel any previous animationRequestFrame
-    window.cancelAnimationFrame(_animFrameId);
+    globalThis.cancelAnimationFrame(_animFrameId);
     _animFrameId = -1;
 }
 
@@ -124,6 +118,9 @@ function _switchState(state) {
         // new requested state
         _startRunLoop();
 
+        // publish the pause event
+        event.emit(event.STATE_CHANGE);
+
         // execute callback if defined
         if (_onSwitchComplete) {
             _onSwitchComplete();
@@ -135,31 +132,76 @@ function _switchState(state) {
 }
 
 // initialize me.state on system boot
-event.subscribe(event.BOOT, function () {
+event.on(event.BOOT, () => {
     // set the built-in loading stage
-    state.set(state.LOADING, defaultLoadingScreen);
+    state.set(state.LOADING, new DefaultLoadingScreen());
     // set and enable the default stage
     state.set(state.DEFAULT, new Stage());
     // enable by default as soon as the display is initialized
-    event.subscribe(event.VIDEO_INIT, function () {
+    event.on(event.VIDEO_INIT, () => {
         state.change(state.DEFAULT, true);
     });
-});
 
+    if (typeof globalThis.addEventListener === "function") {
+        // set pause/stop action on losing focus
+        globalThis.addEventListener("blur", () => {
+            if (device.stopOnBlur) {
+                state.stop(true);
+            }
+            if (device.pauseOnBlur) {
+                state.pause(true);
+            }
+        }, false);
+        // set restart/resume action on gaining focus
+        globalThis.addEventListener("focus", () => {
+            if (device.stopOnBlur) {
+                state.restart(true);
+            }
+            if (device.resumeOnFocus) {
+                state.resume(true);
+            }
+            // force focus if autofocus is on
+            if (device.autoFocus) {
+                device.focus();
+            }
+        }, false);
+    }
+
+    if (typeof globalThis.document !== "undefined") {
+        if (typeof globalThis.document.addEventListener === "function") {
+            // register on the visibilitychange event if supported
+            globalThis.document.addEventListener("visibilitychange", () => {
+                if (globalThis.document.visibilityState === "visible") {
+                    if (device.stopOnBlur) {
+                        state.restart(true);
+                    }
+                    if (device.resumeOnFocus) {
+                        state.resume(true);
+                    }
+                } else {
+                    if (device.stopOnBlur) {
+                        state.stop(true);
+                    }
+                    if (device.pauseOnBlur) {
+                        state.pause(true);
+                    }
+                }
+            }, false );
+        }
+    }
+});
 
 /**
  * a State Manager (state machine)
  * @namespace state
- * @memberOf me
  */
-
-var state = {
+let state = {
 
     /**
      * default state ID for Loading Stage
      * @constant
      * @name LOADING
-     * @memberOf me.state
+     * @memberof state
      */
     LOADING : 0,
 
@@ -167,7 +209,7 @@ var state = {
      * default state ID for Menu Stage
      * @constant
      * @name MENU
-     * @memberOf me.state
+     * @memberof state
      */
     MENU : 1,
 
@@ -175,7 +217,7 @@ var state = {
      * default state ID for "Ready" Stage
      * @constant
      * @name READY
-     * @memberOf me.state
+     * @memberof state
      */
     READY : 2,
 
@@ -183,7 +225,7 @@ var state = {
      * default state ID for Play Stage
      * @constant
      * @name PLAY
-     * @memberOf me.state
+     * @memberof state
      */
     PLAY : 3,
 
@@ -191,7 +233,7 @@ var state = {
      * default state ID for Game Over Stage
      * @constant
      * @name GAMEOVER
-     * @memberOf me.state
+     * @memberof state
      */
     GAMEOVER : 4,
 
@@ -199,7 +241,7 @@ var state = {
      * default state ID for Game End Stage
      * @constant
      * @name GAME_END
-     * @memberOf me.state
+     * @memberof state
      */
     GAME_END : 5,
 
@@ -207,7 +249,7 @@ var state = {
      * default state ID for High Score Stage
      * @constant
      * @name SCORE
-     * @memberOf me.state
+     * @memberof state
      */
     SCORE : 6,
 
@@ -215,7 +257,7 @@ var state = {
      * default state ID for Credits Stage
      * @constant
      * @name CREDITS
-     * @memberOf me.state
+     * @memberof state
      */
     CREDITS : 7,
 
@@ -223,7 +265,7 @@ var state = {
      * default state ID for Settings Stage
      * @constant
      * @name SETTINGS
-     * @memberOf me.state
+     * @memberof state
      */
     SETTINGS : 8,
 
@@ -232,7 +274,7 @@ var state = {
      * (the default stage is the one running as soon as melonJS is started)
      * @constant
      * @name SETTINGS
-     * @memberOf me.state
+     * @memberof state
      */
     DEFAULT : 9,
 
@@ -240,86 +282,49 @@ var state = {
      * default state ID for user defined constants<br>
      * @constant
      * @name USER
-     * @memberOf me.state
+     * @memberof state
      * @example
-     * var STATE_INFO = me.state.USER + 0;
-     * var STATE_WARN = me.state.USER + 1;
-     * var STATE_ERROR = me.state.USER + 2;
-     * var STATE_CUTSCENE = me.state.USER + 3;
+     * let STATE_INFO = me.state.USER + 0;
+     * let STATE_WARN = me.state.USER + 1;
+     * let STATE_ERROR = me.state.USER + 2;
+     * let STATE_CUTSCENE = me.state.USER + 3;
      */
     USER : 100,
 
     /**
-     * onPause callback
-     * @function
-     * @name onPause
-     * @memberOf me.state
-     */
-    onPause : null,
-
-    /**
-     * onResume callback
-     * @function
-     * @name onResume
-     * @memberOf me.state
-     */
-    onResume : null,
-
-    /**
-     * onStop callback
-     * @function
-     * @name onStop
-     * @memberOf me.state
-     */
-    onStop : null,
-
-    /**
-     * onRestart callback
-     * @function
-     * @name onRestart
-     * @memberOf me.state
-     */
-    onRestart : null,
-
-    /**
-     * Stop the current screen object.
+     * Stop the current stage.
      * @name stop
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Boolean} pauseTrack pause current track on screen stop.
+     * @param {boolean} [pauseTrack=false] - pause current track on screen stop.
      */
-    stop(music) {
+    stop(pauseTrack=false) {
         // only stop when we are not loading stuff
         if ((_state !== this.LOADING) && this.isRunning()) {
             // stop the main loop
             _stopRunLoop();
+
             // current music stop
-            if (music === true) {
+            if (pauseTrack === true) {
                 pauseTrack();
             }
 
             // store time when stopped
-            _pauseTime = window.performance.now();
+            _pauseTime = globalThis.performance.now();
 
             // publish the stop notification
-            event.publish(event.STATE_STOP);
-            // any callback defined ?
-            if (typeof(this.onStop) === "function") {
-                this.onStop();
-            }
+            event.emit(event.STATE_STOP);
         }
     },
 
     /**
-     * pause the current screen object
+     * pause the current stage
      * @name pause
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Boolean} pauseTrack pause current track on screen pause
+     * @param {boolean} [music=false] - pause current music track on screen pause
      */
-    pause(music) {
+    pause(music=false) {
         // only pause when we are not loading stuff
         if ((_state !== this.LOADING) && !this.isPaused()) {
             // stop the main loop
@@ -330,26 +335,21 @@ var state = {
             }
 
             // store time when paused
-            _pauseTime = window.performance.now();
+            _pauseTime = globalThis.performance.now();
 
             // publish the pause event
-            event.publish(event.STATE_PAUSE);
-            // any callback defined ?
-            if (typeof(this.onPause) === "function") {
-                this.onPause();
-            }
+            event.emit(event.STATE_PAUSE);
         }
     },
 
     /**
-     * Restart the screen object from a full stop.
+     * Restart the current stage from a full stop.
      * @name restart
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Boolean} resumeTrack resume current track on screen resume
+     * @param {boolean} [music=false] - resume current music track on screen resume
      */
-    restart(music) {
+    restart(music=false) {
         if (!this.isRunning()) {
             // restart the main loop
             _startRunLoop();
@@ -359,29 +359,24 @@ var state = {
             }
 
             // calculate the elpased time
-            _pauseTime = window.performance.now() - _pauseTime;
+            _pauseTime = globalThis.performance.now() - _pauseTime;
 
             // force repaint
             game.repaint();
 
             // publish the restart notification
-            event.publish(event.STATE_RESTART, [ _pauseTime ]);
-            // any callback defined ?
-            if (typeof(this.onRestart) === "function") {
-                this.onRestart();
-            }
+            event.emit(event.STATE_RESTART, _pauseTime);
         }
     },
 
     /**
-     * resume the screen object
+     * resume the current stage
      * @name resume
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Boolean} resumeTrack resume current track on screen resume
+     * @param {boolean} [music=false] - resume current music track on screen resume
      */
-    resume(music) {
+    resume(music=false) {
         if (this.isPaused()) {
             // resume the main loop
             _resumeRunLoop();
@@ -391,24 +386,19 @@ var state = {
             }
 
             // calculate the elpased time
-            _pauseTime = window.performance.now() - _pauseTime;
+            _pauseTime = globalThis.performance.now() - _pauseTime;
 
             // publish the resume event
-            event.publish(event.STATE_RESUME, [ _pauseTime ]);
-            // any callback defined ?
-            if (typeof(this.onResume) === "function") {
-                this.onResume();
-            }
+            event.emit(event.STATE_RESUME, _pauseTime);
         }
     },
 
     /**
      * return the running state of the state manager
      * @name isRunning
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @return {Boolean} true if a "process is running"
+     * @returns {boolean} true if a "process is running"
      */
     isRunning() {
         return _animFrameId !== -1;
@@ -417,10 +407,9 @@ var state = {
     /**
      * Return the pause state of the state manager
      * @name isPaused
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @return {Boolean} true if the game is paused
+     * @returns {boolean} true if the game is paused
      */
     isPaused() {
         return _isPaused;
@@ -429,12 +418,11 @@ var state = {
     /**
      * associate the specified state with a Stage
      * @name set
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Number} state State ID (see constants)
-     * @param {me.Stage} stage Instantiated Stage to associate with state ID
-     * @param {Boolean} [start = false] if true the state will be changed immediately after adding it.
+     * @param {number} state - State ID (see constants)
+     * @param {Stage} stage - Instantiated Stage to associate with state ID
+     * @param {boolean} [start = false] - if true the state will be changed immediately after adding it.
      * @example
      * class MenuButton extends me.GUI_Object {
      *     onClick() {
@@ -472,7 +460,7 @@ var state = {
      *
      * me.state.set(me.state.MENU, new MenuScreen());
      */
-    set(state, stage, start) {
+    set(state, stage, start = false) {
         if (!(stage instanceof Stage)) {
             throw new Error(stage + " is not an instance of me.Stage");
         }
@@ -486,29 +474,43 @@ var state = {
     },
 
     /**
-     * return a reference to the current screen object<br>
+     * returns the stage associated with the specified state
+     * (or the current one if none is specified)
+     * @name set
+     * @memberof state
+     * @public
+     * @param {number} [state] - State ID (see constants)
+     * @returns {Stage}
+     */
+    get(state = _state) {
+        if (typeof _stages[state] !== "undefined") {
+            return _stages[state].stage;
+        } else {
+            return undefined;
+        }
+
+    },
+
+    /**
+     * return a reference to the current stage<br>
      * useful to call a object specific method
      * @name current
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @return {me.Stage}
+     * @returns {Stage}
      */
     current() {
-        if (typeof _stages[_state] !== "undefined") {
-            return _stages[_state].stage;
-        }
+        return this.get();
     },
 
     /**
      * specify a global transition effect
      * @name transition
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {String} effect (only "fade" is supported for now)
-     * @param {me.Color|String} color a CSS color value
-     * @param {Number} [duration=1000] expressed in milliseconds
+     * @param {string} effect - (only "fade" is supported for now)
+     * @param {Color|string} color - a CSS color value
+     * @param {number} [duration=1000] - expressed in milliseconds
      */
     transition(effect, color, duration) {
         if (effect === "fade") {
@@ -518,13 +520,12 @@ var state = {
     },
 
     /**
-     * enable/disable transition for a specific state (by default enabled for all)
+     * enable/disable the transition to a particular state (by default enabled for all)
      * @name setTransition
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Number} state State ID (see constants)
-     * @param {Boolean} enable
+     * @param {number} state - State ID (see constants)
+     * @param {boolean} enable
      */
     setTransition(state, enable) {
         _stages[state].transition = enable;
@@ -533,12 +534,11 @@ var state = {
     /**
      * change the game/app state
      * @name change
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Number} state State ID (see constants)
-     * @param {Boolean} forceChange if true the state will be changed immediately
-     * @param {} [arguments...] extra arguments to be passed to the reset functions
+     * @param {number} state - State ID (see constants)
+     * @param {boolean} forceChange - if true the state will be changed immediately
+     * @param {object} [...arguments] - extra arguments to be passed to the reset functions
      * @example
      * // The onResetEvent method on the play screen will receive two args:
      * // "level_1" and the number 3
@@ -550,39 +550,36 @@ var state = {
             throw new Error("Undefined Stage for state '" + state + "'");
         }
 
-        if (this.isCurrent(state)) {
-            // do nothing if already the current state
-            return;
-        }
+        // do nothing if already the current state
+        if (!this.isCurrent(state)) {
+            _extraArgs = null;
+            if (arguments.length > 1) {
+                // store extra arguments if any
+                _extraArgs = Array.prototype.slice.call(arguments, 1);
+            }
+            // if fading effect
+            if (_fade.duration && _stages[state].transition) {
+                _onSwitchComplete = () => {
+                    game.viewport.fadeOut(_fade.color, _fade.duration);
+                };
+                game.viewport.fadeIn(
+                    _fade.color,
+                    _fade.duration,
+                    function () {
+                        fctUtil.defer(_switchState, this, state);
+                    }
+                );
 
-        _extraArgs = null;
-        if (arguments.length > 1) {
-            // store extra arguments if any
-            _extraArgs = Array.prototype.slice.call(arguments, 1);
-        }
-        // if fading effect
-        if (_fade.duration && _stages[state].transition) {
-            /** @ignore */
-            _onSwitchComplete = function() {
-                game.viewport.fadeOut(_fade.color, _fade.duration);
-            };
-            game.viewport.fadeIn(
-                _fade.color,
-                _fade.duration,
-                function () {
-                    utils.function.defer(_switchState, this, state);
+            }
+            // else just switch without any effects
+            else {
+                // wait for the last frame to be
+                // "finished" before switching
+                if (forceChange === true) {
+                    _switchState(state);
+                } else {
+                    fctUtil.defer(_switchState, this, state);
                 }
-            );
-
-        }
-        // else just switch without any effects
-        else {
-            // wait for the last frame to be
-            // "finished" before switching
-            if (forceChange === true) {
-                _switchState(state);
-            } else {
-                utils.function.defer(_switchState, this, state);
             }
         }
     },
@@ -590,10 +587,10 @@ var state = {
     /**
      * return true if the specified state is the current one
      * @name isCurrent
-     * @memberOf me.state
+     * @memberof state
      * @public
-     * @function
-     * @param {Number} state State ID (see constants)
+     * @param {number} state - State ID (see constants)
+     * @returns {boolean} true if the specified state is the current one
      */
     isCurrent(state) {
         return _state === state;

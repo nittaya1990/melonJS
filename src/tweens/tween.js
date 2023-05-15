@@ -1,13 +1,13 @@
 import timer from "./../system/timer.js";
 import * as event from "./../system/event.js";
-import { world, lastUpdate } from "./../game.js";
+import { game } from "../index.js";
 import { Easing } from "./easing.js";
 import { Interpolation } from "./interpolation.js";
 
-/**
-* Tween.js - Licensed under the MIT license
-* https://github.com/tweenjs/tween.js
-*/
+/*
+ * Tween.js - Licensed under the MIT license
+ * https://github.com/tweenjs/tween.js
+ */
 
 /**
  * @classdesc
@@ -22,46 +22,23 @@ import { Interpolation } from "./interpolation.js";
  * author Paul Lewis / http://www.aerotwist.com/<br>
  * author lechecacharro<br>
  * author Josh Faul / http://jocafa.com/
- * @class Tween
- * @memberOf me
- * @constructor
- * @param {Object} object object on which to apply the tween
- * @example
- * // add a tween to change the object pos.x and pos.y variable to 200 in 3 seconds
- * tween = new me.Tween(myObject.pos).to({
- *       x: 200,
- *       y: 200,
- *    }, {
- *       duration: 3000,
- *       easing: me.Tween.Easing.Bounce.Out,
- *       autoStart : true
- * }).onComplete(myFunc);
  */
-class Tween {
+ export default class Tween {
 
-    // constructor
+    /**
+     * @param {object} object - object on which to apply the tween
+     * @example
+     * // add a tween to change the object pos.x and pos.y variable to 200 in 3 seconds
+     * tween = new me.Tween(myObject.pos).to({
+     *       x: 200,
+     *       y: 200,
+     *    }, {
+     *       duration: 3000,
+     *       easing: me.Tween.Easing.Bounce.Out,
+     *       autoStart : true
+     * }).onComplete(myFunc);
+     */
     constructor ( object ) {
-        this.object = null;
-        this.valuesStart = null;
-        this.valuesEnd = null;
-        this.valuesStartRepeat = null;
-        this.duration = null;
-        this.repeat = null;
-        this.yoyo = null;
-        this.reversed = null;
-        this.delayTime = null;
-        this.startTime = null;
-        this.easingFunction = null;
-        this.interpolationFunction = null;
-        this.chainedTweens = null;
-        this.onStartCallback = null;
-        this.onStartCallbackFired = null;
-        this.onUpdateCallback = null;
-        this.onCompleteCallback = null;
-        this.tweenTimeTracker = null;
-        // comply with the container contract
-        this.isRenderable = false;
-
         this.setProperties(object);
     }
 
@@ -95,15 +72,17 @@ class Tween {
         this._onUpdateCallback = null;
         this._onCompleteCallback = null;
         // tweens are synchronized with the game update loop
-        this._tweenTimeTracker = lastUpdate;
+        this._tweenTimeTracker = game.lastUpdate;
 
         // reset flags to default value
         this.isPersistent = false;
         // this is not really supported
         this.updateWhenPaused = false;
+        // comply with the container contract
+        this.isRenderable = false;
 
         // Set all starting values present on the target object
-        for ( var field in object ) {
+        for ( let field in object ) {
             if (typeof object !== "object") {
                 this._valuesStart[ field ] = parseFloat(object[field]);
             }
@@ -126,7 +105,7 @@ class Tween {
      * @ignore
      */
     onActivateEvent() {
-        event.subscribe(event.STATE_RESUME, this._resumeCallback);
+        event.on(event.STATE_RESUME, this._resumeCallback, this);
     }
 
     /**
@@ -134,24 +113,24 @@ class Tween {
      * @ignore
      */
     onDeactivateEvent() {
-        event.unsubscribe(event.STATE_RESUME, this._resumeCallback);
+        event.off(event.STATE_RESUME, this._resumeCallback);
     }
 
     /**
      * object properties to be updated and duration
      * @name to
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {Object} properties hash of properties
-     * @param {Object|Number} [options] object of tween properties, or a duration if a numeric value is passed
-     * @param {Number} [options.duration] tween duration
-     * @param {me.Tween.Easing} [options.easing] easing function
-     * @param {Number} [options.delay] delay amount expressed in milliseconds
-     * @param {Boolean} [options.yoyo] allows the tween to bounce back to their original value when finished. To be used together with repeat to create endless loops.
-     * @param {Number} [options.repeat] amount of times the tween should be repeated
-     * @param {me.Tween.Interpolation} [options.interpolation] interpolation function
-     * @param {Boolean} [options.autoStart] allow this tween to start automatically. Otherwise call me.Tween.start().
+     * @param {object} properties - hash of properties
+     * @param {object|number} [options] - object of tween properties, or a duration if a numeric value is passed
+     * @param {number} [options.duration] - tween duration
+     * @param {Tween.Easing} [options.easing] - easing function
+     * @param {number} [options.delay] - delay amount expressed in milliseconds
+     * @param {boolean} [options.yoyo] - allows the tween to bounce back to their original value when finished. To be used together with repeat to create endless loops.
+     * @param {number} [options.repeat] - amount of times the tween should be repeated
+     * @param {Tween.Interpolation} [options.interpolation] - interpolation function
+     * @param {boolean} [options.autoStart] - allow this tween to start automatically. Otherwise call me.Tween.start().
+     * @returns {Tween} this instance for object chaining
      */
     to( properties, options ) {
 
@@ -176,26 +155,26 @@ class Tween {
         }
 
         return this;
-
     }
 
     /**
      * start the tween
      * @name start
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
+     * @param {number} [time] - the current time when the tween was started
+     * @returns {Tween} this instance for object chaining
      */
     start( time = timer.getTime() ) {
 
         this._onStartCallbackFired = false;
 
         // add the tween to the object pool on start
-        world.addChild(this);
+        game.world.addChild(this);
 
         this._startTime =  time + this._delayTime;
 
-        for ( var property in this._valuesEnd ) {
+        for ( let property in this._valuesEnd ) {
 
             // check if an Array was provided as property value
             if ( this._valuesEnd[ property ] instanceof Array ) {
@@ -222,29 +201,28 @@ class Tween {
         }
 
         return this;
-
     }
 
     /**
      * stop the tween
      * @name stop
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
+     * @returns {Tween} this instance for object chaining
      */
     stop() {
         // remove the tween from the world container
-        world.removeChildNow(this);
+        game.world.removeChildNow(this);
         return this;
     }
 
     /**
      * delay the tween
      * @name delay
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {Number} amount delay amount expressed in milliseconds
+     * @param {number} amount - delay amount expressed in milliseconds
+     * @returns {Tween} this instance for object chaining
      */
     delay( amount ) {
 
@@ -256,10 +234,10 @@ class Tween {
     /**
      * Repeat the tween
      * @name repeat
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {Number} times amount of times the tween should be repeated
+     * @param {number} times - amount of times the tween should be repeated
+     * @returns {Tween} this instance for object chaining
      */
     repeat( times ) {
 
@@ -272,11 +250,11 @@ class Tween {
      * Allows the tween to bounce back to their original value when finished.
      * To be used together with repeat to create endless loops.
      * @name yoyo
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @see me.Tween#repeat
-     * @param {Boolean} yoyo
+     * @see Tween#repeat
+     * @param {boolean} yoyo
+     * @returns {Tween} this instance for object chaining
      */
     yoyo( yoyo ) {
 
@@ -288,10 +266,10 @@ class Tween {
     /**
      * set the easing function
      * @name easing
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {me.Tween.Easing} fn easing function
+     * @param {Tween.Easing} easing - easing function
+     * @returns {Tween} this instance for object chaining
      */
     easing( easing ) {
         if (typeof easing !== "function") {
@@ -299,16 +277,15 @@ class Tween {
         }
         this._easingFunction = easing;
         return this;
-
     }
 
     /**
      * set the interpolation function
      * @name interpolation
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {me.Tween.Interpolation} fn interpolation function
+     * @param {Tween.Interpolation} interpolation - interpolation function
+     * @returns {Tween} this instance for object chaining
      */
     interpolation( interpolation ) {
         this._interpolationFunction = interpolation;
@@ -318,10 +295,10 @@ class Tween {
     /**
      * chain the tween
      * @name chain
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {me.Tween} chainedTween Tween to be chained
+     * @param {...Tween} chainedTween - Tween(s) to be chained
+     * @returns {Tween} this instance for object chaining
      */
     chain() {
         this._chainedTweens = arguments;
@@ -331,51 +308,51 @@ class Tween {
     /**
      * onStart callback
      * @name onStart
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {Function} onStartCallback callback
+     * @param {Function} onStartCallback - callback
+     * @returns {Tween} this instance for object chaining
      */
-    onStart( callback ) {
-        this._onStartCallback = callback;
+    onStart( onStartCallback ) {
+        this._onStartCallback = onStartCallback;
         return this;
     }
 
     /**
      * onUpdate callback
      * @name onUpdate
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {Function} onUpdateCallback callback
+     * @param {Function} onUpdateCallback - callback
+     * @returns {Tween} this instance for object chaining
      */
-    onUpdate( callback ) {
-        this._onUpdateCallback = callback;
+    onUpdate( onUpdateCallback ) {
+        this._onUpdateCallback = onUpdateCallback;
         return this;
     }
 
     /**
      * onComplete callback
      * @name onComplete
-     * @memberOf me.Tween
+     * @memberof Tween
      * @public
-     * @function
-     * @param {Function} onCompleteCallback callback
+     * @param {Function} onCompleteCallback - callback
+     * @returns {Tween} this instance for object chaining
      */
-    onComplete( callback ) {
-        this._onCompleteCallback = callback;
+    onComplete( onCompleteCallback ) {
+        this._onCompleteCallback = onCompleteCallback;
         return this;
-    };
+    }
 
     /** @ignore */
     update( dt ) {
 
         // the original Tween implementation expect
         // a timestamp and not a time delta
-        this._tweenTimeTracker = (lastUpdate > this._tweenTimeTracker) ? lastUpdate : this._tweenTimeTracker + dt;
-        var time = this._tweenTimeTracker;
+        this._tweenTimeTracker = (game.lastUpdate > this._tweenTimeTracker) ? game.lastUpdate : this._tweenTimeTracker + dt;
+        let time = this._tweenTimeTracker;
 
-        var property;
+        let property;
 
         if ( time < this._startTime ) {
 
@@ -395,15 +372,15 @@ class Tween {
 
         }
 
-        var elapsed = ( time - this._startTime ) / this._duration;
+        let elapsed = ( time - this._startTime ) / this._duration;
         elapsed = elapsed > 1 ? 1 : elapsed;
 
-        var value = this._easingFunction( elapsed );
+        let value = this._easingFunction( elapsed );
 
         for ( property in this._valuesEnd ) {
 
-            var start = this._valuesStart[ property ] || 0;
-            var end = this._valuesEnd[ property ];
+            let start = this._valuesStart[ property ] || 0;
+            let end = this._valuesEnd[ property ];
 
             if ( end instanceof Array ) {
 
@@ -447,7 +424,7 @@ class Tween {
                     }
 
                     if (this._yoyo) {
-                        var tmp = this._valuesStartRepeat[ property ];
+                        let tmp = this._valuesStartRepeat[ property ];
                         this._valuesStartRepeat[ property ] = this._valuesEnd[ property ];
                         this._valuesEnd[ property ] = tmp;
                     }
@@ -465,7 +442,7 @@ class Tween {
 
             } else {
                 // remove the tween from the world container
-                world.removeChildNow(this);
+                game.world.removeChildNow(this);
 
                 if ( this._onCompleteCallback !== null ) {
 
@@ -473,7 +450,7 @@ class Tween {
 
                 }
 
-                for ( var i = 0, numChainedTweens = this._chainedTweens.length; i < numChainedTweens; i ++ ) {
+                for ( let i = 0, numChainedTweens = this._chainedTweens.length; i < numChainedTweens; i ++ ) {
 
                     this._chainedTweens[ i ].start( time );
 
@@ -490,6 +467,4 @@ class Tween {
     // export easing function as static class property
     static get Easing() { return Easing; }
     static get Interpolation() { return Interpolation; }
-};
-
-export default Tween;
+}

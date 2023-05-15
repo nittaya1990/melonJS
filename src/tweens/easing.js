@@ -1,7 +1,7 @@
-/**
-* Tween.js - Licensed under the MIT license
-* https://github.com/tweenjs/tween.js
-*/
+/*
+ * Tween.js - Licensed under the MIT license
+ * https://github.com/tweenjs/tween.js
+ */
 
 /* eslint-disable quotes, keyword-spacing, comma-spacing, no-return-assign */
 
@@ -42,9 +42,9 @@
  * </p>
  * @public
  * @constant
- * @type enum
+ * @enum {Function}
  * @name Easing
- * @memberOf me.Tween
+ * @memberof Tween
  */
 export let Easing = {
 
@@ -263,21 +263,21 @@ export let Easing = {
         /** @ignore */
         In: function ( k ) {
 
-            var s = 1.70158;
+            const s = 1.70158;
             return k * k * ( ( s + 1 ) * k - s );
 
         },
         /** @ignore */
         Out: function ( k ) {
 
-            var s = 1.70158;
+            const s = 1.70158;
             return --k * k * ( ( s + 1 ) * k + s ) + 1;
 
         },
         /** @ignore */
         InOut: function ( k ) {
 
-            var s = 1.70158 * 1.525;
+            const s = 1.70158 * 1.525;
             if ( ( k *= 2 ) < 1 ) return 0.5 * ( k * k * ( ( s + 1 ) * k - s ) );
             return 0.5 * ( ( k -= 2 ) * k * ( ( s + 1 ) * k + s ) + 2 );
 

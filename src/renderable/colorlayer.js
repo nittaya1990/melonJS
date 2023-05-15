@@ -1,23 +1,17 @@
 import pool from "./../system/pooling.js";
-import { viewport } from "./../game.js";
 import Renderable from "./renderable.js";
 
 
 /**
  * @classdesc
  * a generic Color Layer Object.  Fills the entire Canvas with the color not just the container the object belongs to.
- * @class
- * @extends me.Renderable
- * @memberOf me
- * @constructor
- * @param {String} name Layer name
- * @param {me.Color|String} color CSS color
- * @param {Number} z z-index position
+ * @augments Renderable
  */
-class ColorLayer extends Renderable {
-
+ export default class ColorLayer extends Renderable {
     /**
-     * @ignore
+     * @param {string} name - Layer name
+     * @param {Color|string} color - CSS color
+     * @param {number} [z = 0] - z-index position
      */
     constructor(name, color, z) {
         // parent constructor
@@ -26,9 +20,9 @@ class ColorLayer extends Renderable {
         /**
          * the layer color component
          * @public
-         * @type me.Color
+         * @type {Color}
          * @name color
-         * @memberOf me.ColorLayer#
+         * @memberof ColorLayer#
          */
          this.color = pool.pull("Color").parseCSS(color);
 
@@ -36,7 +30,7 @@ class ColorLayer extends Renderable {
 
     }
 
-    onResetEvent(name, color, z) {
+    onResetEvent(name, color, z = 0) {
         // apply given parameters
         this.name = name;
         this.pos.z = z;
@@ -46,18 +40,21 @@ class ColorLayer extends Renderable {
     }
 
     /**
-     * draw the color layer
-     * @ignore
+     * draw this color layer (automatically called by melonJS)
+     * @name draw
+     * @memberof ColorLayer
+     * @protected
+     * @param {CanvasRenderer|WebGLRenderer} renderer - a renderer instance
+     * @param {Camera2d} [viewport] - the viewport to (re)draw
      */
-    draw(renderer, rect) {
-        var color = renderer.getColor();
-        var vpos = viewport.pos;
-        renderer.setColor(this.color);
-        renderer.fillRect(
-            rect.left - vpos.x, rect.top - vpos.y,
-            rect.width, rect.height
+    draw(renderer, viewport) {
+        renderer.save();
+        renderer.clipRect(
+            0, 0,
+            viewport.width, viewport.height
         );
-        renderer.setColor(color);
+        renderer.clearColor(this.color);
+        renderer.restore();
     }
 
     /**
@@ -70,6 +67,4 @@ class ColorLayer extends Renderable {
         super.destroy();
     }
 
-};
-
-export default ColorLayer;
+}

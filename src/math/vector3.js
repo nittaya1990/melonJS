@@ -4,18 +4,15 @@ import pool from "./../system/pooling.js";
 /**
  * @classdesc
  * a generic 3D Vector Object
- * @class Vector3d
- * @memberOf me
- * @constructor
- * @param {Number} [x=0] x value of the vector
- * @param {Number} [y=0] y value of the vector
- * @param {Number} [z=0] z value of the vector
  */
-
-class Vector3d {
-
-    constructor(...args) {
-        this.onResetEvent(...args);
+ export default class Vector3d {
+    /**
+     * @param {number} [x=0] - x value of the vector
+     * @param {number} [y=0] - y value of the vector
+     * @param {number} [z=0] - z value of the vector
+     */
+    constructor(x = 0, y = 0, z = 0) {
+        this.onResetEvent(x, y, z);
     }
 
     /**
@@ -30,7 +27,8 @@ class Vector3d {
     }
 
     /**
-     * @ignore */
+     * @ignore
+     */
     _set(x, y, z = 0) {
         this.x = x;
         this.y = y;
@@ -41,12 +39,11 @@ class Vector3d {
     /**
      * set the Vector x and y properties to the given values<br>
      * @name set
-     * @memberOf me.Vector3d
-     * @function
-     * @param {Number} x
-     * @param {Number} y
-     * @param {Number} [z=0]
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {number} x
+     * @param {number} y
+     * @param {number} [z=0]
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     set(x, y, z) {
         if (x !== +x || y !== +y || (typeof z !== "undefined" && z !== +z)) {
@@ -58,27 +55,27 @@ class Vector3d {
         /**
          * x value of the vector
          * @public
-         * @type Number
+         * @member {number}
          * @name x
-         * @memberOf me.Vector3d
+         * @memberof Vector3d
          */
         //this.x = x;
 
         /**
          * y value of the vector
          * @public
-         * @type Number
+         * @member {number}
          * @name y
-         * @memberOf me.Vector3d
+         * @memberof Vector3d
          */
         //this.y = y;
 
         /**
          * z value of the vector
          * @public
-         * @type Number
+         * @member {number}
          * @name z
-         * @memberOf me.Vector3d
+         * @memberof Vector3d
          */
         //this.z = z;
 
@@ -88,9 +85,8 @@ class Vector3d {
     /**
      * set the Vector x and y properties to 0
      * @name setZero
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     setZero() {
         return this.set(0, 0, 0);
@@ -99,10 +95,9 @@ class Vector3d {
     /**
      * set the Vector x and y properties using the passed vector
      * @name setV
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     setV(v) {
         return this._set(v.x, v.y, v.z);
@@ -111,10 +106,9 @@ class Vector3d {
     /**
      * Add the passed vector to this vector
      * @name add
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     add(v) {
         return this._set(this.x + v.x, this.y + v.y, this.z + (v.z || 0));
@@ -123,10 +117,9 @@ class Vector3d {
     /**
      * Substract the passed vector to this vector
      * @name sub
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     sub(v) {
         return this._set(this.x - v.x, this.y - v.y, this.z - (v.z || 0));
@@ -135,25 +128,22 @@ class Vector3d {
     /**
      * Multiply this vector values by the given scalar
      * @name scale
-     * @memberOf me.Vector3d
-     * @function
-     * @param {Number} x
-     * @param {Number} [y=x]
-     * @param {Number} [z=1]
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {number} x
+     * @param {number} [y=x]
+     * @param {number} [z=1]
+     * @returns {Vector3d} Reference to this object for method chaining
      */
-    scale(x, y, z) {
-        y = (typeof (y) !== "undefined" ? y : x);
-        return this._set(this.x * x, this.y * y, this.z * (z || 1));
+    scale(x, y = x, z = 1) {
+        return this._set(this.x * x, this.y * y, this.z * z);
     }
 
     /**
      * Multiply this vector values by the passed vector
      * @name scaleV
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     scaleV(v) {
         return this.scale(v.x, v.y, v.z);
@@ -162,9 +152,8 @@ class Vector3d {
     /**
      * Convert this vector into isometric coordinate space
      * @name toIso
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     toIso() {
         return this._set(this.x - this.y, (this.x + this.y) * 0.5, this.z);
@@ -173,9 +162,8 @@ class Vector3d {
     /**
      * Convert this vector into 2d coordinate space
      * @name to2d
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     to2d() {
         return this._set(this.y + this.x / 2, this.y - this.x / 2, this.z);
@@ -184,10 +172,9 @@ class Vector3d {
     /**
      * Divide this vector values by the passed value
      * @name div
-     * @memberOf me.Vector3d
-     * @function
-     * @param {Number} value
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {number} n - the value to divide the vector by
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     div(n) {
         return this._set(this.x / n, this.y / n, this.z / n);
@@ -196,9 +183,8 @@ class Vector3d {
     /**
      * Update this vector values to absolute values
      * @name abs
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     abs() {
         return this._set((this.x < 0) ? -this.x : this.x, (this.y < 0) ? -this.y : this.y, (this.z < 0) ? -this.z : this.z);
@@ -207,11 +193,10 @@ class Vector3d {
     /**
      * Clamp the vector value within the specified value range
      * @name clamp
-     * @memberOf me.Vector3d
-     * @function
-     * @param {Number} low
-     * @param {Number} high
-     * @return {me.Vector3d} new me.Vector3d
+     * @memberof Vector3d
+     * @param {number} low
+     * @param {number} high
+     * @returns {Vector3d} new me.Vector3d
      */
     clamp(low, high) {
         return new Vector3d(clamp(this.x, low, high), clamp(this.y, low, high), clamp(this.z, low, high));
@@ -220,11 +205,10 @@ class Vector3d {
     /**
      * Clamp this vector value within the specified value range
      * @name clampSelf
-     * @memberOf me.Vector3d
-     * @function
-     * @param {Number} low
-     * @param {Number} high
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {number} low
+     * @param {number} high
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     clampSelf(low, high) {
         return this._set(clamp(this.x, low, high), clamp(this.y, low, high), clamp(this.z, low, high));
@@ -233,35 +217,32 @@ class Vector3d {
     /**
      * Update this vector with the minimum value between this and the passed vector
      * @name minV
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     minV(v) {
-        var _vz = v.z || 0;
+        let _vz = v.z || 0;
         return this._set((this.x < v.x) ? this.x : v.x, (this.y < v.y) ? this.y : v.y, (this.z < _vz) ? this.z : _vz);
     }
 
     /**
      * Update this vector with the maximum value between this and the passed vector
      * @name maxV
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     maxV(v) {
-        var _vz = v.z || 0;
+        let _vz = v.z || 0;
         return this._set((this.x > v.x) ? this.x : v.x, (this.y > v.y) ? this.y : v.y, (this.z > _vz) ? this.z : _vz);
     }
 
     /**
      * Floor the vector values
      * @name floor
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} new me.Vector3d
+     * @memberof Vector3d
+     * @returns {Vector3d} new me.Vector3d
      */
     floor() {
         return new Vector3d(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z));
@@ -270,9 +251,8 @@ class Vector3d {
     /**
      * Floor this vector values
      * @name floorSelf
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     floorSelf() {
         return this._set(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z));
@@ -281,9 +261,8 @@ class Vector3d {
     /**
      * Ceil the vector values
      * @name ceil
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} new me.Vector3d
+     * @memberof Vector3d
+     * @returns {Vector3d} new me.Vector3d
      */
     ceil() {
         return new Vector3d(Math.ceil(this.x), Math.ceil(this.y), Math.ceil(this.z));
@@ -292,9 +271,8 @@ class Vector3d {
     /**
      * Ceil this vector values
      * @name ceilSelf
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     ceilSelf() {
         return this._set(Math.ceil(this.x), Math.ceil(this.y), Math.ceil(this.z));
@@ -303,9 +281,8 @@ class Vector3d {
     /**
      * Negate the vector values
      * @name negate
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} new me.Vector3d
+     * @memberof Vector3d
+     * @returns {Vector3d} new me.Vector3d
      */
     negate() {
         return new Vector3d(-this.x, -this.y, -this.z);
@@ -314,9 +291,8 @@ class Vector3d {
     /**
      * Negate this vector values
      * @name negateSelf
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     negateSelf() {
         return this._set(-this.x, -this.y, -this.z);
@@ -325,10 +301,9 @@ class Vector3d {
     /**
      * Copy the components of the given vector into this one
      * @name copy
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     copy(v) {
         return this._set(v.x, v.y, v.z || 0);
@@ -337,23 +312,22 @@ class Vector3d {
     /**
      * return true if the two vectors are the same
      * @name equals
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {Boolean}
+     * @memberof Vector3d
+     * @method
+     * @param {Vector2d|Vector3d} v
+     * @returns {boolean}
      */
     /**
      * return true if this vector is equal to the given values
      * @name equals
-     * @memberOf me.Vector3d
-     * @function
-     * @param {Number} x
-     * @param {Number} y
-     * @param {Number} [z]
-     * @return {Boolean}
+     * @memberof Vector3d
+     * @param {number} x
+     * @param {number} y
+     * @param {number} [z]
+     * @returns {boolean}
      */
     equals() {
-        var _x, _y, _z;
+        let _x, _y, _z;
         if (arguments.length >= 2) {
             // x, y, z
             _x = arguments[0];
@@ -376,9 +350,8 @@ class Vector3d {
     /**
      * normalize this vector (scale the vector so that its magnitude is 1)
      * @name normalize
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     normalize() {
         return this.div(this.length() || 1);
@@ -388,9 +361,8 @@ class Vector3d {
      * change this vector to be perpendicular to what it was before.<br>
      * (Effectively rotates it 90 degrees in a clockwise direction around the z axis)
      * @name perp
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     perp() {
         return this._set(this.y, -this.x, this.z);
@@ -399,15 +371,14 @@ class Vector3d {
     /**
      * Rotate this vector (counter-clockwise) by the specified angle (in radians) around the z axis
      * @name rotate
-     * @memberOf me.Vector3d
-     * @function
-     * @param {number} angle The angle to rotate (in radians)
-     * @param {me.Vector2d|me.ObservableVector2d} [v] an optional point to rotate around (on the same z axis)
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {number} angle - The angle to rotate (in radians)
+     * @param {Vector2d|ObservableVector2d} [v] - an optional point to rotate around (on the same z axis)
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     rotate(angle, v) {
-        var cx = 0;
-        var cy = 0;
+        let cx = 0;
+        let cy = 0;
 
         if (typeof v === "object") {
             cx = v.x;
@@ -415,44 +386,59 @@ class Vector3d {
         }
 
         // TODO also rotate on the z axis if the given vector is a 3d one
-        var x = this.x - cx;
-        var y = this.y - cy;
+        let x = this.x - cx;
+        let y = this.y - cy;
 
-        var c = Math.cos(angle);
-        var s = Math.sin(angle);
+        let c = Math.cos(angle);
+        let s = Math.sin(angle);
 
         return this._set(x * c - y * s + cx, x * s + y * c + cy, this.z);
     }
 
     /**
      * return the dot product of this vector and the passed one
-     * @name dotProduct
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {Number} The dot product.
+     * @name dot
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {number} The dot product.
      */
-    dotProduct(v) {
+    dot(v) {
         return this.x * v.x + this.y * v.y + this.z * (typeof(v.z) !== "undefined" ? v.z : this.z);
     }
 
-   /**
-     * return the square length of this vector
-     * @name length2
-     * @memberOf me.Vector3d
-     * @function
-     * @return {Number} The length^2 of this vector.
+    /**
+     * calculate the cross product of this vector and the passed one
+     * @name cross
+     * @memberof Vector3d
+     * @param {Vector3d} v
+     * @returns {Vector3d} Reference to this object for method chaining
      */
+    cross(v) {
+        let ax = this.x, ay = this.y, az = this.z;
+        let bx = v.x, by = v.y, bz = v.z;
+
+        this.x = ay * bz - az * by;
+        this.y = az * bx - ax * bz;
+        this.z = ax * by - ay * bx;
+
+        return this;
+    }
+
+   /**
+    * return the square length of this vector
+    * @name length2
+    * @memberof Vector3d
+    * @returns {number} The length^2 of this vector.
+    */
     length2() {
-        return this.dotProduct(this);
+        return this.dot(this);
     }
 
     /**
      * return the length (magnitude) of this vector
      * @name length
-     * @memberOf me.Vector3d
-     * @function
-     * @return {Number} the length of this vector
+     * @memberof Vector3d
+     * @returns {number} the length of this vector
      */
     length() {
         return Math.sqrt(this.length2());
@@ -461,11 +447,10 @@ class Vector3d {
     /**
      * Linearly interpolate between this vector and the given one.
      * @name lerp
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector3d} v
-     * @param {Number} alpha distance along the line (alpha = 0 will be this vector, and alpha = 1 will be the given one).
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector3d} v
+     * @param {number} alpha - distance along the line (alpha = 0 will be this vector, and alpha = 1 will be the given one).
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     lerp(v, alpha) {
         this.x += ( v.x - this.x ) * alpha;
@@ -475,42 +460,65 @@ class Vector3d {
     }
 
     /**
+     * interpolate the position of this vector on the x and y axis towards the given one by the given maximum step.
+     * @name moveTowards
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} target
+     * @param {number} step - the maximum step per iteration (Negative values will push the vector away from the target)
+     * @returns {Vector3d} Reference to this object for method chaining
+     */
+    moveTowards(target, step) {
+        let angle = Math.atan2(target.y - this.y, target.x - this.x);
+
+        let dx = this.x - target.x;
+        let dy = this.y - target.y;
+
+        let distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance === 0 || (step >= 0 && distance <= step * step)) {
+            return target;
+        }
+
+        this.x += Math.cos(angle) * step;
+        this.y += Math.sin(angle) * step;
+
+        return this;
+    }
+
+    /**
      * return the distance between this vector and the passed one
      * @name distance
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {Number}
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {number}
      */
     distance(v) {
-        var dx = this.x - v.x;
-        var dy = this.y - v.y;
-        var dz = this.z - (v.z || 0);
+        let dx = this.x - v.x;
+        let dy = this.y - v.y;
+        let dz = this.z - (v.z || 0);
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     /**
      * return the angle between this vector and the passed one
      * @name angle
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v
-     * @return {Number} angle in radians
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v
+     * @returns {number} angle in radians
      */
     angle(v) {
-        return Math.acos(clamp(this.dotProduct(v) / (this.length() * v.length()), -1, 1));
+        return Math.acos(clamp(this.dot(v) / (this.length() * v.length()), -1, 1));
     }
 
     /**
      * project this vector on to another vector.
      * @name project
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v The vector to project onto.
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v - The vector to project onto.
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     project(v) {
-        var ratio = this.dotProduct(v) / v.length2();
+        let ratio = this.dot(v) / v.length2();
         return this.scale(ratio, ratio, ratio);
     }
 
@@ -518,22 +526,20 @@ class Vector3d {
      * Project this vector onto a vector of unit length.<br>
      * This is slightly more efficient than `project` when dealing with unit vectors.
      * @name projectN
-     * @memberOf me.Vector3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v The unit vector to project onto.
-     * @return {me.Vector3d} Reference to this object for method chaining
+     * @memberof Vector3d
+     * @param {Vector2d|Vector3d} v - The unit vector to project onto.
+     * @returns {Vector3d} Reference to this object for method chaining
      */
     projectN(v) {
-        var ratio = this.dotProduct(v) / v.length2();
+        let ratio = this.dot(v) / v.length2();
         return this.scale(ratio, ratio, ratio);
     }
 
     /**
      * return a clone copy of this vector
      * @name clone
-     * @memberOf me.Vector3d
-     * @function
-     * @return {me.Vector3d} new me.Vector3d
+     * @memberof Vector3d
+     * @returns {Vector3d} new me.Vector3d
      */
     clone() {
         return pool.pull("Vector3d", this.x, this.y, this.z);
@@ -542,13 +548,11 @@ class Vector3d {
     /**
      * convert the object to a string representation
      * @name toString
-     * @memberOf me.Vector3d
-     * @function
-     * @return {String}
+     * @memberof Vector3d
+     * @returns {string}
      */
     toString() {
         return "x:" + this.x + ",y:" + this.y + ",z:" + this.z;
     }
-};
+}
 
-export default Vector3d;

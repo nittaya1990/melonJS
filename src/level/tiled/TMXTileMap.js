@@ -1,51 +1,18 @@
 import pool from "./../../system/pooling.js";
 import * as event from "./../../system/event.js";
-import { viewport } from "./../../game.js";
+import { game } from "../../index.js";
+import { checkVersion } from "./../../utils/utils.js";
 import collision from "./../../physics/collision.js";
 import Body from "./../../physics/body.js";
-import TMXOrthogonalRenderer from "./renderer/TMXOrthogonalRenderer.js";
-import TMXIsometricRenderer from "./renderer/TMXIsometricRenderer.js";
-import TMXHexagonalRenderer from "./renderer/TMXHexagonalRenderer.js";
-import TMXStaggeredRenderer from "./renderer/TMXStaggeredRenderer.js";
 import TMXTileset from "./TMXTileset.js";
 import TMXTilesetGroup from "./TMXTilesetGroup.js";
 import TMXGroup from "./TMXGroup.js";
 import TMXLayer from "./TMXLayer.js";
 import { applyTMXProperties } from "./TMXUtils.js";
-import Renderable from "./../../renderable/renderable.js";
-import Container from "./../../renderable/container.js";
-import Rect from "./../../shapes/rectangle.js";
-
-// constant to identify the collision object layer
-var COLLISION_GROUP = "collision";
-
-// onresize handler
-var onresize_handler = null;
-
-/**
- * set a compatible renderer object
- * for the specified map
- * @ignore
- */
-function getNewDefaultRenderer(map) {
-    switch (map.orientation) {
-        case "orthogonal":
-            return new TMXOrthogonalRenderer(map);
-
-        case "isometric":
-            return new TMXIsometricRenderer(map);
-
-        case "hexagonal":
-            return new TMXHexagonalRenderer(map);
-
-        case "staggered":
-            return new TMXStaggeredRenderer(map);
-
-        // if none found, throw an exception
-        default:
-            throw new Error(map.orientation + " type TMX Tile Map not supported!");
-    }
-}
+import Container from "../../renderable/container.js";
+import { COLLISION_GROUP } from "./constants.js";
+import { getNewTMXRenderer } from "./renderer/autodetect.js";
+import { warning } from "../../lang/console.js";
 
 /**
  * read the layer Data
@@ -64,7 +31,7 @@ function readImageLayer(map, data, z) {
     applyTMXProperties(data.properties, data);
 
     // create the layer
-    var imageLayer = pool.pull("ImageLayer",
+    let imageLayer = pool.pull("ImageLayer",
         // x/y is deprecated since 0.15 and replace by offsetx/y
         +data.offsetx || +data.x || 0,
         +data.offsety || +data.y || 0,
@@ -80,7 +47,7 @@ function readImageLayer(map, data, z) {
 
 
     // set some additional flags
-    var visible = typeof(data.visible) !== "undefined" ? data.visible : true;
+    let visible = typeof(data.visible) !== "undefined" ? data.visible : true;
     imageLayer.setOpacity(visible ? +data.opacity : 0);
 
     return imageLayer;
@@ -106,20 +73,17 @@ function readObjectGroup(map, data, z) {
  * @classdesc
  * a TMX Tile Map Object
  * Tiled QT +0.7.x format
- * @class TMXTileMap
- * @memberOf me
- * @constructor
- * @param {String} levelId name of TMX map
- * @param {Object} data TMX map in JSON format
- * @example
- * // create a new level object based on the TMX JSON object
- * var level = new me.TMXTileMap(levelId, me.loader.getTMX(levelId));
- * // add the level to the game world container
- * level.addTo(me.game.world, true);
  */
-export default class TMXTileMap {
-
-    // constructor
+ export default class TMXTileMap {
+    /**
+     * @param {string} levelId - name of TMX map
+     * @param {object} data - TMX map in JSON format
+     * @example
+     * // create a new level object based on the TMX JSON object
+     * let level = new me.TMXTileMap(levelId, me.loader.getTMX(levelId));
+     * // add the level to the game world container
+     * level.addTo(me.game.world, true);
+     */
     constructor(levelId, data) {
 
         /**
@@ -130,86 +94,73 @@ export default class TMXTileMap {
 
         /**
          * name of the tilemap
-         * @public
-         * @type {String}
-         * @name me.TMXTileMap#name
+         * @type {string}
          */
         this.name = levelId;
 
         /**
          * width of the tilemap in tiles
-         * @public
-         * @type {Number}
-         * @name me.TMXTileMap#cols
+         * @type {number}
          */
         this.cols = +data.width;
+
         /**
          * height of the tilemap in tiles
-         * @public
-         * @type {Number}
-         * @name me.TMXTileMap#rows
+         * @type {number}
          */
         this.rows = +data.height;
 
         /**
          * Tile width
-         * @public
-         * @type {Number}
-         * @name me.TMXTileMap#tilewidth
+         * @type {number}
          */
         this.tilewidth = +data.tilewidth;
 
         /**
          * Tile height
-         * @public
-         * @type {Number}
-         * @name me.TMXTileMap#tileheight
+         * @type {number}
          */
         this.tileheight = +data.tileheight;
 
         /**
          * is the map an infinite map
-         * @public
-         * @type {Number}
+         * @type {number}
          * @default 0
-         * @name me.TMXTileMap#infinite
          */
-        this.infinite = +data.infinite;
+        this.infinite = +data.infinite || 0;
 
         /**
          * the map orientation type. melonJS supports “orthogonal”, “isometric”, “staggered” and “hexagonal”.
-         * @public
-         * @type {String}
+         * @type {string}
          * @default "orthogonal"
-         * @name me.TMXTileMap#orientation
          */
         this.orientation = data.orientation;
 
         /**
-        * the order in which tiles on orthogonal tile layers are rendered.
-        * (valid values are "left-down", "left-up", "right-down", "right-up")
-         * @public
-         * @type {String}
+         * the order in which tiles on orthogonal tile layers are rendered.
+         * (valid values are "left-down", "left-up", "right-down", "right-up")
+         * @type {string}
          * @default "right-down"
-         * @name me.TMXTileMap#renderorder
          */
         this.renderorder = data.renderorder || "right-down";
 
         /**
          * the TMX format version
-         * @public
-         * @type {String}
-         * @name me.TMXTileMap#version
+         * @type {string}
          */
-        this.version = data.version;
+        this.version = "" + data.version;
 
         /**
          * The Tiled version used to save the file (since Tiled 1.0.1).
-         * @public
-         * @type {String}
-         * @name me.TMXTileMap#tiledversion
+         * @type {string}
          */
-        this.tiledversion = data.tiledversion;
+        this.tiledversion = "" + data.tiledversion;
+
+        /**
+         * The map class.
+         * @type {string}
+         */
+        this.class = data.class;
 
         // tilesets for this map
         this.tilesets = null;
@@ -225,7 +176,6 @@ export default class TMXTileMap {
 
         // Check if map is from melon editor
         this.isEditor = data.editor === "melon-editor";
-
 
         // object id
         this.nextobjectid = +data.nextobjectid || undefined;
@@ -245,40 +195,36 @@ export default class TMXTileMap {
         // background color
         this.backgroundcolor = data.backgroundcolor;
 
+        // if version is undefined or empty it usually means the map was not created with Tiled
+        if (this.version !== "undefined" && this.version !== "") {
+            // deprecation warning if map tiled version is older than 1.5
+            if (checkVersion(this.version, "1.5") < 0) {
+                warning("("+this.name+") Tiled Map format version 1.4 and below", "format 1.5 or higher", "10.4.4");
+            }
+        }
+
+
         // set additional map properties (if any)
         applyTMXProperties(this, data);
 
         // internal flag
         this.initialized = false;
-
-        if (this.infinite === 1) {
-            // #956 Support for Infinite map
-            // see as well in me.TMXUtils
-            throw new Error("Tiled Infinite Map not supported!");
-        }
     }
 
     /**
      * Return the map default renderer
-     * @name getRenderer
-     * @memberOf me.TMXTileMap
-     * @public
-     * @function
-     * @return {me.TMXRenderer} a TMX renderer
+     * @returns {TMXRenderer} a TMX renderer
      */
     getRenderer() {
         if ((typeof(this.renderer) === "undefined") || (!this.renderer.canRender(this))) {
-            this.renderer = getNewDefaultRenderer(this);
-        };
+            this.renderer = getNewTMXRenderer(this);
+        }
         return this.renderer;
     }
 
     /**
      * return the map bounding rect
-     * @name me.TMXRenderer#getBounds
-     * @public
-     * @function
-     * @return {me.Bounds}
+     * @returns {Bounds}
      */
     getBounds() {
         // calculated in the constructor
@@ -296,8 +242,7 @@ export default class TMXTileMap {
         }
 
         // to automatically increment z index
-        var zOrder = 0;
-        var self = this;
+        let zOrder = 0;
 
         // Tileset information
         if (!this.tilesets) {
@@ -307,22 +252,11 @@ export default class TMXTileMap {
 
         // parse all tileset objects
         if (typeof (data.tilesets) !== "undefined") {
-            var tilesets = data.tilesets;
-            tilesets.forEach(function (tileset) {
+            let tilesets = data.tilesets;
+            tilesets.forEach((tileset) => {
                 // add the new tileset
-                self.tilesets.add(readTileset(tileset));
+                this.tilesets.add(readTileset(tileset));
             });
-        }
-
-        // check if a user-defined background color is defined
-        if (this.backgroundcolor) {
-            this.layers.push(
-                pool.pull("ColorLayer",
-                    "background_color",
-                    this.backgroundcolor,
-                    zOrder++
-                )
-            );
         }
 
         // check if a background image is defined
@@ -338,24 +272,24 @@ export default class TMXTileMap {
             ));
         }
 
-        data.layers.forEach(function (layer) {
+        data.layers.forEach((layer) => {
             switch (layer.type) {
                 case "imagelayer":
-                    self.layers.push(readImageLayer(self, layer, zOrder++));
+                    this.layers.push(readImageLayer(this, layer, zOrder++));
                     break;
 
                 case "tilelayer":
-                    self.layers.push(readLayer(self, layer, zOrder++));
+                    this.layers.push(readLayer(this, layer, zOrder++));
                     break;
 
                 // get the object groups information
                 case "objectgroup":
-                    self.objectGroups.push(readObjectGroup(self, layer, zOrder++));
+                    this.objectGroups.push(readObjectGroup(this, layer, zOrder++));
                     break;
 
                 // get the object groups information
                 case "group":
-                    self.objectGroups.push(readObjectGroup(self, layer, zOrder++));
+                    this.objectGroups.push(readObjectGroup(this, layer, zOrder++));
                     break;
 
                 default:
@@ -370,35 +304,36 @@ export default class TMXTileMap {
     /**
      * add all the map layers and objects to the given container.
      * note : this will not automatically update the camera viewport
-     * @name me.TMXTileMap#addTo
-     * @public
-     * @function
-     * @param {me.Container} target container
-     * @param {boolean} [flatten=true] if true, flatten all objects into the given container, else a `me.Container` object will be created for each corresponding groups
-     * @param {boolean} [setViewportBounds=false] if true, set the viewport bounds to the map size, this should be set to true especially if adding a level to the game world container.
+     * @param {Container} container - target container
+     * @param {boolean} [flatten=true] - if true, flatten all objects into the given container, else a `me.Container` object will be created for each corresponding groups
+     * @param {boolean} [setViewportBounds=false] - if true, set the viewport bounds to the map size, this should be set to true especially if adding a level to the game world container.
      * @example
      * // create a new level object based on the TMX JSON object
-     * var level = new me.TMXTileMap(levelId, me.loader.getTMX(levelId));
+     * let level = new me.TMXTileMap(levelId, me.loader.getTMX(levelId));
      * // add the level to the game world container
      * level.addTo(me.game.world, true, true);
      */
     addTo(container, flatten, setViewportBounds) {
-        var _sort = container.autoSort;
-        var _depth = container.autoDepth;
+        let _sort = container.autoSort;
+        let _depth = container.autoDepth;
 
-        var levelBounds = this.getBounds();
+        let levelBounds = this.getBounds();
 
         // disable auto-sort and auto-depth
         container.autoSort = false;
         container.autoDepth = false;
 
+        if (this.backgroundcolor) {
+            container.backgroundColor.parseCSS(this.backgroundcolor);
+        }
+
         // add all layers instances
-        this.getLayers().forEach(function (layer) {
+        this.getLayers().forEach((layer) => {
             container.addChild(layer);
         });
 
         // add all Object instances
-        this.getObjects(flatten).forEach(function (object) {
+        this.getObjects(flatten).forEach((object) => {
             container.addChild(object);
         });
 
@@ -408,11 +343,13 @@ export default class TMXTileMap {
         // sort everything (recursively)
         container.sort(true);
 
-
-        // callback funtion for the viewport resize event
+        /**
+         * callback funtion for the viewport resize event
+         * @ignore
+         */
         function _setBounds(width, height) {
             // adjust the viewport bounds if level is smaller
-            viewport.setBounds(
+            game.viewport.setBounds(
                 0, 0,
                 Math.max(levelBounds.width, width),
                 Math.max(levelBounds.height, height)
@@ -427,13 +364,11 @@ export default class TMXTileMap {
         }
 
         if (setViewportBounds === true) {
+            event.off(event.VIEWPORT_ONRESIZE, _setBounds);
             // force viewport bounds update
-            _setBounds(viewport.width, viewport.height);
+            _setBounds(game.viewport.width, game.viewport.height);
             // Replace the resize handler
-            if (onresize_handler) {
-                event.unsubscribe(onresize_handler);
-            }
-            onresize_handler = event.subscribe(event.VIEWPORT_ONRESIZE, _setBounds);
+            event.on(event.VIEWPORT_ONRESIZE, _setBounds, this);
         }
 
         //  set back auto-sort and auto-depth
@@ -443,23 +378,20 @@ export default class TMXTileMap {
 
     /**
      * return an Array of instantiated objects, based on the map object definition
-     * @name me.TMXTileMap#getObjects
-     * @public
-     * @function
-     * @param {boolean} [flatten=true] if true, flatten all objects into the returned array.
+     * @param {boolean} [flatten=true] - if true, flatten all objects into the returned array.
      * when false, a `me.Container` object will be created for each corresponding groups
-     * @return {me.Renderable[]} Array of Objects
+     * @returns {Renderable[]} Array of Objects
      */
     getObjects(flatten) {
-        var objects = [];
-        var isCollisionGroup = false;
-        var targetContainer;
+        let objects = [];
+        let isCollisionGroup = false;
+        let targetContainer;
 
         // parse the map for objects
         this.readMapObjects(this.data);
 
-        for (var g = 0; g < this.objectGroups.length; g++) {
-            var group = this.objectGroups[g];
+        for (let g = 0; g < this.objectGroups.length; g++) {
+            let group = this.objectGroups[g];
 
             // check if this is the collision shape group
             isCollisionGroup = group.name.toLowerCase().includes(COLLISION_GROUP);
@@ -483,11 +415,13 @@ export default class TMXTileMap {
 
             // iterate through the group and add all object into their
             // corresponding target Container
-            for (var o = 0; o < group.objects.length; o++) {
+            for (let o = 0; o < group.objects.length; o++) {
                 // TMX object settings
-                var settings = group.objects[o];
+                let settings = group.objects[o];
                 // reference to the instantiated object
-                var obj;
+                let obj;
+                // a reference to the default shape
+                let shape;
 
                 // Tiled uses 0,0 by default
                 if (typeof (settings.anchorPoint) === "undefined") {
@@ -520,9 +454,19 @@ export default class TMXTileMap {
                     // set the obj z order
                     obj.pos.z = settings.z;
                 } else if (typeof settings.tile === "object") {
+                    // create a default shape if none is specified
+                    shape = settings.shapes;
+                    if (typeof shape === "undefined") {
+                        shape = pool.pull("Polygon", 0, 0, [
+                            pool.pull("Vector2d", 0,          0),
+                            pool.pull("Vector2d", this.width, 0),
+                            pool.pull("Vector2d", this.width, this.height)
+                        ]);
+                    }
                     // check if a me.Tile object is embedded
                     obj = settings.tile.getRenderable(settings);
-                    obj.body = new Body(obj, settings.shapes || new Rect(0, 0, this.width, this.height));
+                    obj.body = new Body(obj, shape);
+                    obj.body.setStatic(true);
                     // set the obj z order
                     obj.pos.setMuted(settings.x, settings.y, settings.z);
                 } else {
@@ -540,11 +484,23 @@ export default class TMXTileMap {
                             settings.x, settings.y,
                             settings.width, settings.height
                         );
+                        // create a default shape if none is specified
+                        shape = settings.shapes;
+                        if (typeof shape === "undefined") {
+                            shape = pool.pull("Polygon", 0, 0, [
+                                pool.pull("Vector2d", 0,          0),
+                                pool.pull("Vector2d", this.width, 0),
+                                pool.pull("Vector2d", this.width, this.height)
+                            ]);
+                        }
                         obj.anchorPoint.set(0, 0);
                         obj.name = settings.name;
                         obj.type = settings.type;
+                        // for backward compatibility
+                        obj.class = settings.class || settings.type;
                         obj.id = settings.id;
-                        obj.body = new Body(obj, settings.shapes || new Rect(0, 0, obj.width, obj.height));
+                        obj.body = new Body(obj, shape);
+                        obj.body.setStatic(true);
                         obj.resize(obj.body.getBounds().width, obj.body.getBounds().height);
                     }
                     // set the obj z order
@@ -554,6 +510,8 @@ export default class TMXTileMap {
                 if (isCollisionGroup && !settings.name && obj.body) {
                     // configure the body accordingly
                     obj.body.collisionType = collision.types.WORLD_SHAPE;
+                    // mark collision shapes as static
+                    obj.body.isStatic = true;
                 }
 
                 //apply group opacity value to the child objects if group are merged
@@ -561,7 +519,7 @@ export default class TMXTileMap {
                     if (obj.isRenderable === true) {
                         obj.setOpacity(obj.getOpacity() * group.opacity);
                         // and to child renderables if any
-                        if (obj.renderable instanceof Renderable) {
+                        if (typeof obj.renderable !== "undefined" && obj.renderable.isRenderable === true) {
                             obj.renderable.setOpacity(obj.renderable.getOpacity() * group.opacity);
                         }
                     }
@@ -590,10 +548,7 @@ export default class TMXTileMap {
 
     /**
      * return all the existing layers
-     * @name me.TMXTileMap#getLayers
-     * @public
-     * @function
-     * @return {me.TMXLayer[]} Array of Layers
+     * @returns {TMXLayer[]} Array of Layers
      */
     getLayers() {
         // parse the map for objects
@@ -603,9 +558,6 @@ export default class TMXTileMap {
 
     /**
      * destroy function, clean all allocated objects
-     * @name me.TMXTileMap#destroy
-     * @public
-     * @function
      */
     destroy() {
         this.tilesets = undefined;
@@ -613,4 +565,5 @@ export default class TMXTileMap {
         this.objectGroups.length = 0;
         this.initialized = false;
     }
-};
+}
+

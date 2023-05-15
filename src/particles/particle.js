@@ -1,119 +1,131 @@
-import Vector2d from "./../math/vector2.js";
+import pool from "./../system/pooling.js";
 import timer from "./../system/timer.js";
 import { randomFloat, clamp } from "./../math/math.js";
 import Renderable from "./../renderable/renderable.js";
 
-
 /**
+ * @classdesc
  * Single Particle Object.
- * @class
- * @extends me.Renderable
- * @memberOf me
- * @constructor
- * @param {me.ParticleEmitter} particle emitter
+ * @augments Renderable
  */
-class Particle extends Renderable {
+ export default class Particle extends Renderable {
     /**
-     * @ignore
+     * @param {ParticleEmitter} emitter - the particle emitter
      */
     constructor(emitter) {
         // Call the super constructor
         super(
             emitter.getRandomPointX(),
             emitter.getRandomPointY(),
-            emitter.image.width,
-            emitter.image.height
+            emitter.settings.image.width,
+            emitter.settings.image.height
         );
-
-        // particle velocity
-        this.vel = new Vector2d();
         this.onResetEvent(emitter, true);
     }
 
+    /**
+     * @ignore
+     */
     onResetEvent(emitter, newInstance = false) {
         if (newInstance === false) {
-            super.onResetEvent(
+            this.pos.set(
                 emitter.getRandomPointX(),
-                emitter.getRandomPointY(),
-                emitter.image.width,
-                emitter.image.height
+                emitter.getRandomPointY()
             );
+            this.resize(
+                emitter.settings.image.width,
+                emitter.settings.image.height
+            );
+            this.currentTransform.identity();
+        } else {
+            // particle velocity
+            this.vel = pool.pull("Vector2d");
         }
+
+        this.image = emitter.settings.image;
 
         // Particle will always update
         this.alwaysUpdate = true;
 
-        // Cache the image reference
-        this.image = emitter.image;
+        if (typeof emitter.settings.tint === "string") {
+            this.tint.parseCSS(emitter.settings.tint);
+        }
+
+        if (emitter.settings.textureAdditive === true) {
+            this.blendMode = "additive";
+        }
+
+        if (emitter.settings.blendMode !== "normal") {
+            this.blendMode = emitter.settings.blendMode;
+        }
 
         // Set the start particle Angle and Speed as defined in emitter
-        var angle = emitter.angle + ((emitter.angleVariation > 0) ? (randomFloat(0, 2) - 1) * emitter.angleVariation : 0);
-        var speed = emitter.speed + ((emitter.speedVariation > 0) ? (randomFloat(0, 2) - 1) * emitter.speedVariation : 0);
+        let angle = emitter.settings.angle + ((emitter.settings.angleVariation > 0) ? (randomFloat(0, 2) - 1) * emitter.settings.angleVariation : 0);
+        let speed = emitter.settings.speed + ((emitter.settings.speedVariation > 0) ? (randomFloat(0, 2) - 1) * emitter.settings.speedVariation : 0);
 
         // Set the start particle Velocity
         this.vel.set(speed * Math.cos(angle), -speed * Math.sin(angle));
 
         // Set the start particle Time of Life as defined in emitter
-        this.life = randomFloat(emitter.minLife, emitter.maxLife);
+        this.life = randomFloat(emitter.settings.minLife, emitter.settings.maxLife);
         this.startLife = this.life;
 
         // Set the start and end particle Scale as defined in emitter
         // clamp the values as minimum and maximum scales range
         this.startScale = clamp(
-            randomFloat(emitter.minStartScale, emitter.maxStartScale),
-            emitter.minStartScale,
-            emitter.maxStartScale
+            randomFloat(emitter.settings.minStartScale, emitter.settings.maxStartScale),
+            emitter.settings.minStartScale,
+            emitter.settings.maxStartScale
         );
         this.endScale = clamp(
-            randomFloat(emitter.minEndScale, emitter.maxEndScale),
-            emitter.minEndScale,
-            emitter.maxEndScale
+            randomFloat(emitter.settings.minEndScale, emitter.settings.maxEndScale),
+            emitter.settings.minEndScale,
+            emitter.settings.maxEndScale
         );
 
         // Set the particle Gravity and Wind (horizontal gravity) as defined in emitter
-        this.gravity = emitter.gravity;
-        this.wind = emitter.wind;
+        this.gravity = emitter.settings.gravity;
+        this.wind = emitter.settings.wind;
 
         // Set if the particle update the rotation in accordance the trajectory
-        this.followTrajectory = emitter.followTrajectory;
+        this.followTrajectory = emitter.settings.followTrajectory;
 
         // Set if the particle update only in Viewport
-        this.onlyInViewport = emitter.onlyInViewport;
-
-        // Set the particle Z Order
-        this.pos.z = emitter.z;
+        this.onlyInViewport = emitter.settings.onlyInViewport;
 
         // cache inverse of the expected delta time
         this._deltaInv = timer.maxfps / 1000;
 
         // Set the start particle rotation as defined in emitter
         // if the particle not follow trajectory
-        if (!emitter.followTrajectory) {
-            this.angle = randomFloat(emitter.minRotation, emitter.maxRotation);
+        if (!emitter.settings.followTrajectory) {
+            this.angle = randomFloat(emitter.settings.minRotation, emitter.settings.maxRotation);
         }
     }
 
     /**
      * Update the Particle <br>
-     * This is automatically called by the game manager {@link me.game}
-     * @name update
-     * @memberOf me.Particle
-     * @function
+     * This is automatically called by the game manager {@link game}
      * @ignore
-     * @param {Number} dt time since the last update in milliseconds
+     * @param {number} dt - time since the last update in milliseconds
      */
     update(dt) {
         // move things forward independent of the current frame rate
-        var skew = dt * this._deltaInv;
+        let skew = dt * this._deltaInv;
 
         // Decrease particle life
         this.life = this.life > dt ? this.life - dt : 0;
 
+        if (this.life <= 0) {
+            this.ancestor.removeChild(this);
+            return false;
+        }
+
         // Calculate the particle Age Ratio
-        var ageRatio = this.life / this.startLife;
+        let ageRatio = this.life / this.startLife;
 
         // Resize the particle as particle Age Ratio
-        var scale = this.startScale;
+        let scale = this.startScale;
         if (this.startScale > this.endScale) {
             scale *= ageRatio;
             scale = (scale < this.endScale) ? this.endScale : scale;
@@ -131,7 +143,7 @@ class Particle extends Renderable {
         this.vel.y += this.gravity * skew;
 
         // If necessary update the rotation of particle in accordance the particle trajectory
-        var angle = this.followTrajectory ? Math.atan2(this.vel.y, this.vel.x) : this.angle;
+        let angle = this.followTrajectory ? Math.atan2(this.vel.y, this.vel.x) : this.angle;
 
         this.pos.x += this.vel.x * skew;
         this.pos.y += this.vel.y * skew;
@@ -143,30 +155,17 @@ class Particle extends Renderable {
             this.pos.x, this.pos.y, 1
         ).rotate(angle);
 
-        // Return true if the particle is not dead yet
-        return (this.inViewport || !this.onlyInViewport) && (this.life > 0);
-    }
+        // mark as dirty if the particle is not dead yet
+        this.isDirty = this.inViewport || !this.onlyInViewport;
 
-    /**
-     * @ignore
-     */
-    preDraw(renderer) {
-
-        // restore is called in postDraw
-        renderer.save();
-
-        // particle alpha value
-        renderer.setGlobalAlpha(renderer.globalAlpha() * this.alpha);
-
-        // translate to the defined anchor point and scale it
-        renderer.transform(this.currentTransform);
+        return super.update(dt);
     }
 
     /**
      * @ignore
      */
     draw(renderer) {
-        var w = this.width, h = this.height;
+        let w = this.width, h = this.height;
         renderer.drawImage(
             this.image,
             0, 0,
@@ -175,6 +174,5 @@ class Particle extends Renderable {
             w, h
         );
     }
-};
+}
 
-export default Particle;

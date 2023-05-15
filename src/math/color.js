@@ -2,17 +2,26 @@ import { clamp, random } from "./math.js";
 import pool from "./../system/pooling.js";
 
 // convert a give color component to it hexadecimal value
-var toHex = function (component) {
+function toHex(component) {
     return "0123456789ABCDEF".charAt((component - (component % 16)) >> 4) + "0123456789ABCDEF".charAt(component % 16);
-};
+}
 
-var rgbaRx = /^rgba?\((\d+), ?(\d+), ?(\d+)(, ?([\d\.]+))?\)$/;
-var hex3Rx = /^#([\da-fA-F])([\da-fA-F])([\da-fA-F])$/;
-var hex4Rx = /^#([\da-fA-F])([\da-fA-F])([\da-fA-F])([\da-fA-F])$/;
-var hex6Rx = /^#([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})$/;
-var hex8Rx = /^#([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})$/;
+function hue2rgb(p, q, t) {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+}
 
-var cssToRGB = new Map();
+const rgbaRx = /^rgba?\((\d+), ?(\d+), ?(\d+)(, ?([\d\.]+))?\)$/;
+const hex3Rx = /^#([\da-fA-F])([\da-fA-F])([\da-fA-F])$/;
+const hex4Rx = /^#([\da-fA-F])([\da-fA-F])([\da-fA-F])([\da-fA-F])$/;
+const hex6Rx = /^#([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})$/;
+const hex8Rx = /^#([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})$/;
+
+let cssToRGB = new Map();
 
 [
     // CSS1
@@ -165,34 +174,29 @@ var cssToRGB = new Map();
     [ "wheat",                  [ 245, 222, 179 ] ],
     [ "whitesmoke",             [ 245, 245, 245 ] ],
     [ "yellowgreen",            [ 154, 205,  50 ] ]
-].forEach(function (value) {
+].forEach((value) => {
     cssToRGB.set(value[0], value[1]);
 });
 
 /**
  * @classdesc
  * A color manipulation object.
- * @class Color
- * @memberOf me
- * @constructor
- * @param {Number|Float32Array} [r=0] red component or array of color components
- * @param {Number} [g=0] green component
- * @param {Number} [b=0] blue component
- * @param {Number} [alpha=1.0] alpha value
  */
-class Color {
-
-    constructor(...args) {
-        this.onResetEvent(...args);
+ export default class Color {
+    /**
+     * @param {number} [r=0] - red component or array of color components
+     * @param {number} [g=0] - green component
+     * @param {number} [b=0] - blue component
+     * @param {number} [alpha=1.0] - alpha value
+     */
+    constructor(r = 0, g = 0, b = 0, alpha = 1.0) {
+        this.onResetEvent(r, g, b, alpha);
     }
 
     /**
      * @ignore
      */
     onResetEvent(r = 0, g = 0, b = 0, alpha = 1.0) {
-        /**
-         * @ignore
-         */
         if (typeof (this.glArray) === "undefined") {
             // Color components in a Float32Array suitable for WebGL
             this.glArray = new Float32Array([ 0.0, 0.0, 0.0, 1.0 ]);
@@ -202,108 +206,64 @@ class Color {
     }
 
     /**
-     * Color Red Component
-     * @type Number
-     * @name r
-     * @readonly
-     * @memberOf me.Color
-     */
-
-    /**
-     * @ignore
+     * Color Red Component [0 .. 255]
+     * @type {number}
      */
     get r() {
         return ~~(this.glArray[0] * 255);
     }
-    /**
-     * @ignore
-     */
+
     set r(value) {
         this.glArray[0] = clamp(~~value || 0, 0, 255) / 255.0;
     }
 
 
     /**
-     * Color Green Component
-     * @type Number
-     * @name g
-     * @readonly
-     * @memberOf me.Color
-     */
-
-    /**
-     * @ignore
+     * Color Green Component [0 .. 255]
+     * @type {number}
      */
     get g() {
         return ~~(this.glArray[1] * 255);
     }
-    /**
-     * @ignore
-     */
+
     set g(value) {
         this.glArray[1] = clamp(~~value || 0, 0, 255) / 255.0;
     }
 
 
     /**
-     * Color Blue Component
-     * @type Number
-     * @name b
-     * @readonly
-     * @memberOf me.Color
-     */
-    /**
-     * @ignore
+     * Color Blue Component [0 .. 255]
+     * @type {number}
      */
     get b() {
         return ~~(this.glArray[2] * 255);
     }
-    /**
-     * @ignore
-     */
     set b(value) {
         this.glArray[2] = clamp(~~value || 0, 0, 255) / 255.0;
     }
 
     /**
-     * Color Alpha Component
-     * @type Number
-     * @name alpha
-     * @readonly
-     * @memberOf me.Color
-     */
-
-    /**
-     * @ignore
+     * Color Alpha Component [0.0 .. 1.0]
+     * @type {number}
      */
     get alpha() {
         return this.glArray[3];
     }
-    /**
-     * @ignore
-     */
-    set alpha(value) {
-        this.glArray[3] = typeof(value) === "undefined" ? 1.0 : clamp(+value, 0, 1.0);
+
+    set alpha(value = 1.0) {
+        this.glArray[3] = clamp(+value, 0, 1.0);
     }
 
 
     /**
      * Set this color to the specified value.
-     * @name setColor
-     * @memberOf me.Color
-     * @function
-     * @param {Number} r red component [0 .. 255]
-     * @param {Number} g green component [0 .. 255]
-     * @param {Number} b blue component [0 .. 255]
-     * @param {Number} [alpha=1.0] alpha value [0.0 .. 1.0]
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {number} r - red component [0 .. 255]
+     * @param {number} g - green component [0 .. 255]
+     * @param {number} b - blue component [0 .. 255]
+     * @param {number} [alpha=1.0] - alpha value [0.0 .. 1.0]
+     * @returns {Color} Reference to this object for method chaining
      */
     setColor(r, g, b, alpha = 1.0) {
-        // Private initialization: copy Color value directly
-        if (r instanceof Color) {
-            this.glArray.set(r.glArray);
-            return r;
-        }
         this.r = r;
         this.g = g;
         this.b = b;
@@ -312,23 +272,68 @@ class Color {
     }
 
     /**
+     * set this color to the specified HSV value
+     * @param {number} h - hue (a value from 0 to 1)
+     * @param {number} s - saturation (a value from 0 to 1)
+     * @param {number} v - value (a value from 0 to 1)
+     * @returns {Color} Reference to this object for method chaining
+     */
+    setHSV(h, s, v) {
+        let r, g, b;
+
+        let i = Math.floor(h * 6);
+        let f = h * 6 - i;
+        let p = v * (1 - s);
+        let q = v * (1 - f * s);
+        let t = v * (1 - (1 - f) * s);
+
+        switch (i % 6) {
+            case 0: r = v, g = t, b = p; break;
+            case 1: r = q, g = v, b = p; break;
+            case 2: r = p, g = v, b = t; break;
+            case 3: r = p, g = q, b = v; break;
+            case 4: r = t, g = p, b = v; break;
+            case 5: r = v, g = p, b = q; break;
+        }
+        return this.setColor(r * 255, g * 255, b * 255);
+    }
+
+    /**
+     * set this color to the specified HSL value
+     * @param {number} h - hue (a value from 0 to 1)
+     * @param {number} s - saturation (a value from 0 to 1)
+     * @param {number} l - lightness (a value from 0 to 1)
+     * @returns {Color} Reference to this object for method chaining
+     */
+    setHSL(h, s, l) {
+        let r, g, b;
+
+        if (s === 0) {
+            r = g = b = l; // achromatic
+        } else {
+            let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            let p = 2 * l - q;
+
+            r = hue2rgb(p, q, h + 1/3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1/3);
+        }
+
+        return this.setColor(r * 255, g * 255, b * 255);
+    }
+
+    /**
      * Create a new copy of this color object.
-     * @name clone
-     * @memberOf me.Color
-     * @function
-     * @return {me.Color} Reference to the newly cloned object
+     * @returns {Color} Reference to the newly cloned object
      */
     clone() {
-        return pool.pull("Color", this);
+        return pool.pull("Color").copy(this);
     }
 
     /**
      * Copy a color object or CSS color into this one.
-     * @name copy
-     * @memberOf me.Color
-     * @function
-     * @param {me.Color|String} color
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {Color|string} color
+     * @returns {Color} Reference to this object for method chaining
      */
     copy(color) {
         if (color instanceof Color) {
@@ -341,11 +346,8 @@ class Color {
 
     /**
      * Blend this color with the given one using addition.
-     * @name add
-     * @memberOf me.Color
-     * @function
-     * @param {me.Color} color
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {Color} color
+     * @returns {Color} Reference to this object for method chaining
      */
     add(color) {
         this.glArray[0] = clamp(this.glArray[0] + color.glArray[0], 0, 1);
@@ -358,11 +360,8 @@ class Color {
 
     /**
      * Darken this color value by 0..1
-     * @name darken
-     * @memberOf me.Color
-     * @function
-     * @param {Number} scale
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {number} scale
+     * @returns {Color} Reference to this object for method chaining
      */
     darken(scale) {
         scale = clamp(scale, 0, 1);
@@ -375,12 +374,9 @@ class Color {
 
     /**
      * Linearly interpolate between this color and the given one.
-     * @name lerp
-     * @memberOf me.Color
-     * @function
-     * @param {me.Color} color
-     * @param {Number} alpha with alpha = 0 being this color, and alpha = 1 being the given one.
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {Color} color
+     * @param {number} alpha - with alpha = 0 being this color, and alpha = 1 being the given one.
+     * @returns {Color} Reference to this object for method chaining
      */
     lerp(color, alpha) {
         alpha = clamp(alpha, 0, 1);
@@ -393,11 +389,8 @@ class Color {
 
     /**
      * Lighten this color value by 0..1
-     * @name lighten
-     * @memberOf me.Color
-     * @function
-     * @param {Number} scale
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {number} scale
+     * @returns {Color} Reference to this object for method chaining
      */
     lighten(scale) {
         scale = clamp(scale, 0, 1);
@@ -410,12 +403,9 @@ class Color {
 
     /**
      * Generate random r,g,b values for this color object
-     * @name random
-     * @memberOf me.Color
-     * @function
-     * @param {Number} [min=0] minimum value for the random range
-     * @param {Number} [max=255] maxmium value for the random range
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {number} [min=0] - minimum value for the random range
+     * @param {number} [max=255] - maxmium value for the random range
+     * @returns {Color} Reference to this object for method chaining
      */
     random(min = 0, max = 255) {
         if (min < 0) {
@@ -436,11 +426,8 @@ class Color {
     /**
      * Return true if the r,g,b,a values of this color are equal with the
      * given one.
-     * @name equals
-     * @memberOf me.Color
-     * @function
-     * @param {me.Color} color
-     * @return {Boolean}
+     * @param {Color} color
+     * @returns {boolean}
      */
     equals(color) {
         return (
@@ -454,11 +441,8 @@ class Color {
     /**
      * Parse a CSS color string and set this color to the corresponding
      * r,g,b values
-     * @name parseCSS
-     * @memberOf me.Color
-     * @function
-     * @param {String} color
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {string} cssColor
+     * @returns {Color} Reference to this object for method chaining
      */
     parseCSS(cssColor) {
         // TODO : Memoize this function by caching its input
@@ -472,16 +456,13 @@ class Color {
 
     /**
      * Parse an RGB or RGBA CSS color string
-     * @name parseRGB
-     * @memberOf me.Color
-     * @function
-     * @param {String} color
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {string} rgbColor
+     * @returns {Color} Reference to this object for method chaining
      */
     parseRGB(rgbColor) {
         // TODO : Memoize this function by caching its input
 
-        var match = rgbaRx.exec(rgbColor);
+        let match = rgbaRx.exec(rgbColor);
         if (match) {
             return this.setColor(+match[1], +match[2], +match[3], +match[5]);
         }
@@ -492,17 +473,14 @@ class Color {
     /**
      * Parse a Hex color ("#RGB", "#RGBA" or "#RRGGBB", "#RRGGBBAA" format) and set this color to
      * the corresponding r,g,b,a values
-     * @name parseHex
-     * @memberOf me.Color
-     * @function
-     * @param {String} color
-     * @param {boolean} [argb = false] true if format is #ARGB, or #AARRGGBB (as opposed to #RGBA or #RGGBBAA)
-     * @return {me.Color} Reference to this object for method chaining
+     * @param {string} hexColor
+     * @param {boolean} [argb = false] - true if format is #ARGB, or #AARRGGBB (as opposed to #RGBA or #RGGBBAA)
+     * @returns {Color} Reference to this object for method chaining
      */
     parseHex(hexColor, argb = false) {
         // TODO : Memoize this function by caching its input
 
-        var match;
+        let match;
         if ((match = hex8Rx.exec(hexColor))) {
             // #AARRGGBB or #RRGGBBAA
             return this.setColor(
@@ -524,10 +502,10 @@ class Color {
 
         if ((match = hex4Rx.exec(hexColor))) {
             // #ARGB or #RGBA
-            var r = match[argb === false ? 1 : 2];
-            var g = match[argb === false ? 2 : 3];
-            var b = match[argb === false ? 3 : 4];
-            var a = match[argb === false ? 4 : 1];
+            let r = match[argb === false ? 1 : 2];
+            let g = match[argb === false ? 2 : 3];
+            let b = match[argb === false ? 3 : 4];
+            let a = match[argb === false ? 4 : 1];
             return this.setColor(
                 parseInt(r + r, 16), // r
                 parseInt(g + g, 16), // g
@@ -551,22 +529,32 @@ class Color {
     }
 
     /**
+     * Pack this color into a Uint32 ARGB representation
+     * @param {number} [alpha=1.0] - alpha value [0.0 .. 1.0]
+     * @returns {number}
+     */
+    toUint32(alpha = 1.0) {
+        let a = this.glArray;
+
+        let ur = (a[0] * 255) & 0xff;
+        let ug = (a[1] * 255) & 0xff;
+        let ub = (a[2] * 255) & 0xff;
+
+        return (((alpha * 255) & 0xff) << 24) + (ur << 16) + (ug << 8) + ub;
+    }
+
+    /**
      * return an array representation of this object
-     * @name toArray
-     * @memberOf me.Color
-     * @function
-     * @return {Float32Array}
+     * @returns {Float32Array}
      */
     toArray() {
         return this.glArray;
     }
 
+
     /**
-     * Get the color in "#RRGGBB" format
-     * @name toHex
-     * @memberOf me.Color
-     * @function
-     * @return {String}
+     * return the color in "#RRGGBB" format
+     * @returns {string}
      */
     toHex() {
         // TODO : Memoize this function by caching its result until any of
@@ -577,24 +565,18 @@ class Color {
 
     /**
      * Get the color in "#RRGGBBAA" format
-     * @name toHex8
-     * @memberOf me.Color
-     * @function
-     * @return {String}
+     * @returns {string}
      */
-    toHex8() {
+    toHex8(alpha = this.alpha) {
         // TODO : Memoize this function by caching its result until any of
         // the r,g,b,a values are changed
 
-        return "#" + toHex(this.r) + toHex(this.g) + toHex(this.b) + toHex(this.alpha * 255);
+        return "#" + toHex(this.r) + toHex(this.g) + toHex(this.b) + toHex(alpha * 255);
     }
 
     /**
      * Get the color in "rgb(R,G,B)" format
-     * @name toRGB
-     * @memberOf me.Color
-     * @function
-     * @return {String}
+     * @returns {string}
      */
     toRGB() {
         // TODO : Memoize this function by caching its result until any of
@@ -609,12 +591,10 @@ class Color {
 
     /**
      * Get the color in "rgba(R,G,B,A)" format
-     * @name toRGBA
-     * @memberOf me.Color
-     * @function
-     * @return {String}
+     * @param {number} [alpha=1.0] - alpha value [0.0 .. 1.0]
+     * @returns {string}
      */
-    toRGBA() {
+    toRGBA(alpha = this.alpha) {
         // TODO : Memoize this function by caching its result until any of
         // the r,g,b,a values are changed
 
@@ -622,9 +602,8 @@ class Color {
             this.r + "," +
             this.g + "," +
             this.b + "," +
-            this.alpha +
+            alpha +
         ")";
     }
-};
+}
 
-export default Color;

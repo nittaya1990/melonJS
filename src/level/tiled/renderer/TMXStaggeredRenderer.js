@@ -7,13 +7,9 @@ import { degToRad } from "./../../../math/math.js";
 /**
  * @classdesc
  * a Staggered Map Renderder
- * @class TMXStaggeredRenderer
- * @memberOf me
- * @extends me.TMXHexagonalRenderer
- * @constructor
- * @param {me.TMXTileMap} map the TMX map
+ * @augments TMXHexagonalRenderer
  */
-class TMXStaggeredRenderer extends TMXHexagonalRenderer {
+ export default class TMXStaggeredRenderer extends TMXHexagonalRenderer {
 
     /**
      * return true if the renderer can render the specified layer
@@ -31,9 +27,9 @@ class TMXStaggeredRenderer extends TMXHexagonalRenderer {
      * @ignore
      */
     pixelToTileCoords(x, y, v) {
-        var ret = v || new Vector2d();
+        let ret = v || new Vector2d();
 
-        var alignedX = x,
+        let alignedX = x,
             alignedY = y;
 
         if (this.staggerX) {
@@ -43,7 +39,7 @@ class TMXStaggeredRenderer extends TMXHexagonalRenderer {
         }
 
         // Start with the coordinates of a grid-aligned tile
-        var referencePoint = pool.pull("Vector2d",
+        let referencePoint = pool.pull("Vector2d",
             Math.floor(alignedX / this.tilewidth),
             Math.floor(alignedY / this.tileheight)
         );
@@ -62,13 +58,13 @@ class TMXStaggeredRenderer extends TMXHexagonalRenderer {
         }
 
         // Relative x and y position on the base square of the grid-aligned tile
-        var rel = pool.pull("Vector2d",
+        let rel = pool.pull("Vector2d",
             alignedX - referencePoint.x * this.tilewidth,
             alignedY - referencePoint.y * this.tileheight
         );
 
         // Check whether the cursor is in any of the corners (neighboring tiles)
-        var y_pos = rel.x * (this.tileheight / this.tilewidth);
+        let y_pos = rel.x * (this.tileheight / this.tilewidth);
 
         if (this.sideoffsety - y_pos > rel.y) {
             referencePoint = this.topLeft(referencePoint.x, referencePoint.y, referencePoint);
@@ -100,6 +96,5 @@ class TMXStaggeredRenderer extends TMXHexagonalRenderer {
 
         return ret;
     }
-};
+}
 
-export default TMXStaggeredRenderer;

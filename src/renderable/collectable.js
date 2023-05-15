@@ -1,23 +1,18 @@
 import Sprite from "./sprite.js";
 import Body from "./../physics/body.js";
-import Rect from "./../shapes/rectangle.js";
 import collision from "./../physics/collision.js";
+import pool from "./../system/pooling.js";
 
 /**
  * @classdesc
  * a basic collectable helper class for immovable object (e.g. a coin)
- * @class
- * @extends me.Sprite
- * @memberOf me
- * @constructor
- * @param {Number} x the x coordinates of the collectable
- * @param {Number} y the y coordinates of the collectable
- * @param {Object} settings See {@link me.Sprite}
+ * @augments Sprite
  */
-
-class Collectable extends Sprite {
+ export default class Collectable extends Sprite {
     /**
-     * @ignore
+     * @param {number} x - the x coordinates of the collectable
+     * @param {number} y - the y coordinates of the collectable
+     * @param {object} settings - See {@link Sprite}
      */
     constructor(x, y, settings) {
 
@@ -29,8 +24,19 @@ class Collectable extends Sprite {
         this.id = settings.id;
 
         // add and configure the physic body
-        this.body = new Body(this, settings.shapes || new Rect(0, 0, this.width, this.height));
+        let shape = settings.shapes;
+        if (typeof shape === "undefined") {
+            shape = pool.pull("Polygon", 0, 0, [
+                pool.pull("Vector2d", 0,          0),
+                pool.pull("Vector2d", this.width, 0),
+                pool.pull("Vector2d", this.width, this.height)
+            ]);
+        }
+        this.body = new Body(this, shape);
         this.body.collisionType = collision.types.COLLECTABLE_OBJECT;
+        // by default only collides with PLAYER_OBJECT
+        this.body.setCollisionMask(collision.types.PLAYER_OBJECT);
+        this.body.setStatic(true);
 
         // Update anchorPoint
         if (settings.anchorPoint) {
@@ -42,6 +48,4 @@ class Collectable extends Sprite {
 
     }
 
-};
-
-export default Collectable;
+}

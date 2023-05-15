@@ -1,7 +1,5 @@
 import Vector2d from "./../math/vector2.js";
-import Container from "./../renderable/container.js";
-import utils from "./../utils/utils.js";
-import { viewport } from "./../game.js";
+import * as arrayUtil from "./../utils/array.js";
 
 /*
  * A QuadTree implementation in JavaScript, a 2d spatial subdivision algorithm.
@@ -9,30 +7,30 @@ import { viewport } from "./../game.js";
  * https://github.com/timohausmann/quadtree-js/
 **/
 
-
 /**
  * a pool of `QuadTree` objects
  * @ignore
  */
-var QT_ARRAY = [];
+let QT_ARRAY = [];
 
 /**
  * will pop a quadtree object from the array
  * or create a new one if the array is empty
  * @ignore
  */
-function QT_ARRAY_POP(bounds, max_objects, max_levels, level) {
+function QT_ARRAY_POP(world, bounds, max_objects = 4, max_levels = 4, level = 0) {
     if (QT_ARRAY.length > 0) {
-        var _qt =  QT_ARRAY.pop();
+        let _qt =  QT_ARRAY.pop();
+        _qt.world = world;
         _qt.bounds = bounds;
-        _qt.max_objects = max_objects || 4;
-        _qt.max_levels  = max_levels || 4;
-        _qt.level = level || 0;
+        _qt.max_objects = max_objects;
+        _qt.max_levels  = max_levels;
+        _qt.level = level;
         return _qt;
     } else {
-        return new QuadTree(bounds, max_objects, max_levels, level);
+        return new QuadTree(world, bounds, max_objects, max_levels, level);
     }
-};
+}
 
 /**
  * Push back a quadtree back into the array
@@ -40,35 +38,36 @@ function QT_ARRAY_POP(bounds, max_objects, max_levels, level) {
  */
 function QT_ARRAY_PUSH(qt) {
     QT_ARRAY.push(qt);
-};
+}
 
 /**
  * a temporary vector object to be reused
  * @ignore
  */
-var QT_VECTOR = new Vector2d();
+let QT_VECTOR = new Vector2d();
 
 /**
  * @classdesc
  * a QuadTree implementation in JavaScript, a 2d spatial subdivision algorithm.
- * @class
- * @name QuadTree
- * @memberOf me
- * @constructor
- * @see me.game.world.broadphase
- * @param {me.Bounds} bounds bounds of the node
- * @param {Number} [max_objects=4] max objects a node can hold before splitting into 4 subnodes
- * @param {Number} [max_levels=4] total max levels inside root Quadtree
- * @param {Number} [level] deepth level, required for subnodes
+ * @see game.world.broadphase
  */
-class QuadTree {
+ export default class QuadTree {
+    /**
+     * @param {World} world - the physic world this QuadTree belongs to
+     * @param {Bounds} bounds - bounds of the node
+     * @param {number} [max_objects=4] - max objects a node can hold before splitting into 4 subnodes
+     * @param {number} [max_levels=4] - total max levels inside root Quadtree
+     * @param {number} [level] - deepth level, required for subnodes
+     */
+    constructor(world, bounds, max_objects = 4, max_levels = 4, level = 0) {
 
-    constructor(bounds, max_objects, max_levels, level) {
-        this.max_objects = max_objects || 4;
-        this.max_levels  = max_levels || 4;
-
-        this.level = level || 0;
+        this.world = world;
         this.bounds = bounds;
+
+        this.max_objects = max_objects;
+        this.max_levels  = max_levels;
+
+        this.level = level;
 
         this.objects = [];
         this.nodes = [];
@@ -78,65 +77,90 @@ class QuadTree {
      * Split the node into 4 subnodes
      */
     split() {
-        var nextLevel = this.level + 1,
+        let nextLevel = this.level + 1,
             subWidth  = this.bounds.width / 2,
             subHeight = this.bounds.height / 2,
             left = this.bounds.left,
             top = this.bounds.top;
 
          //top right node
-        this.nodes[0] = QT_ARRAY_POP({
-            left : left + subWidth,
-            top : top,
-            width : subWidth,
-            height : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
+        this.nodes[0] = QT_ARRAY_POP(
+            this.world,
+            {
+                left : left + subWidth,
+                top : top,
+                width : subWidth,
+                height : subHeight
+            },
+            this.max_objects,
+            this.max_levels,
+            nextLevel
+        );
 
         //top left node
-        this.nodes[1] = QT_ARRAY_POP({
-            left : left,
-            top: top,
-            width : subWidth,
-            height : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
+        this.nodes[1] = QT_ARRAY_POP(
+            this.world,
+            {
+                left : left,
+                top: top,
+                width : subWidth,
+                height : subHeight
+            },
+            this.max_objects,
+            this.max_levels,
+            nextLevel
+        );
 
         //bottom left node
-        this.nodes[2] = QT_ARRAY_POP({
-            left : left,
-            top : top + subHeight,
-            width : subWidth,
-            height : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
+        this.nodes[2] = QT_ARRAY_POP(
+            this.world,
+            {
+                left : left,
+                top : top + subHeight,
+                width : subWidth,
+                height : subHeight
+            },
+            this.max_objects,
+            this.max_levels,
+            nextLevel
+        );
 
         //bottom right node
-        this.nodes[3] = QT_ARRAY_POP({
-            left : left + subWidth,
-            top : top + subHeight,
-            width : subWidth,
-            height : subHeight
-        }, this.max_objects, this.max_levels, nextLevel);
+        this.nodes[3] = QT_ARRAY_POP(
+            this.world,
+            {
+                left : left + subWidth,
+                top : top + subHeight,
+                width : subWidth,
+                height : subHeight
+            },
+            this.max_objects,
+            this.max_levels,
+            nextLevel
+        );
     }
 
     /*
      * Determine which node the object belongs to
-     * @param {me.Rect} rect bounds of the area to be checked
-     * @return Integer index of the subnode (0-3), or -1 if rect cannot completely fit within a subnode and is part of the parent node
+     * @param {Rect} rect bounds of the area to be checked
+     * @returns Integer index of the subnode (0-3), or -1 if rect cannot completely fit within a subnode and is part of the parent node
      */
     getIndex(item) {
-        var pos;
+        let pos;
+        let bounds = item.getBounds();
 
         // use game world coordinates for floating items
-        if (item.floating || (item.ancestor && item.ancestor.floating)) {
-            pos = viewport.localToWorld(item.left, item.top, QT_VECTOR);
+        if (item.isFloating === true) {
+            pos = this.world.app.viewport.localToWorld(bounds.left, bounds.top, QT_VECTOR);
         } else {
             pos = QT_VECTOR.set(item.left, item.top);
         }
 
-        var index = -1,
+        let index = -1,
             rx = pos.x,
             ry = pos.y,
-            rw = item.width,
-            rh = item.height,
+            rw = bounds.width,
+            rh = bounds.height,
             verticalMidpoint = this.bounds.left + (this.bounds.width / 2),
             horizontalMidpoint = this.bounds.top + (this.bounds.height / 2),
             //rect can completely fit within the top quadrants
@@ -166,14 +190,13 @@ class QuadTree {
     /**
      * Insert the given object container into the node.
      * @name insertContainer
-     * @memberOf me.QuadTree
-     * @function
-     * @param {me.Container} container group of objects to be added
+     * @memberof QuadTree
+     * @param {Container} container - group of objects to be added
      */
     insertContainer(container) {
-        for (var i = container.children.length, child; i--, (child = container.children[i]);) {
+        for (let i = container.children.length, child; i--, (child = container.children[i]);) {
             if (child.isKinematic !== true) {
-                if (child instanceof Container) {
+                if (typeof child.addChild === "function") {
                     if (child.name !== "rootContainer") {
                         this.insert(child);
                     }
@@ -195,12 +218,11 @@ class QuadTree {
      * exceeds the capacity, it will split and add all
      * objects to their corresponding subnodes.
      * @name insert
-     * @memberOf me.QuadTree
-     * @function
-     * @param {Object} item object to be added
+     * @memberof QuadTree
+     * @param {object} item - object to be added
      */
     insert(item) {
-        var index = -1;
+        let index = -1;
 
         //if we have subnodes ...
         if (this.nodes.length > 0) {
@@ -221,7 +243,7 @@ class QuadTree {
                 this.split();
             }
 
-            var i = 0;
+            let i = 0;
 
             //add all objects to there corresponding subnodes
             while (i < this.objects.length) {
@@ -240,26 +262,25 @@ class QuadTree {
     /**
      * Return all objects that could collide with the given object
      * @name retrieve
-     * @memberOf me.QuadTree
-     * @function
-     * @param {Object} object object to be checked against
-     * @param {Object} [function] a sorting function for the returned array
-     * @return {Object[]} array with all detected objects
+     * @memberof QuadTree
+     * @param {object} item - object to be checked against
+     * @param {object} [fn] - a sorting function for the returned array
+     * @returns {object[]} array with all detected objects
      */
     retrieve(item, fn) {
-        var returnObjects = this.objects;
+        let returnObjects = this.objects;
 
         //if we have subnodes ...
         if (this.nodes.length > 0) {
 
-            var index = this.getIndex(item);
+            let index = this.getIndex(item);
 
             //if rect fits into a subnode ..
             if (index !== -1) {
                 returnObjects = returnObjects.concat(this.nodes[index].retrieve(item));
             } else {
                  //if rect does not fit into a subnode, check it against all subnodes
-                for (var i = 0; i < this.nodes.length; i = i + 1) {
+                for (let i = 0; i < this.nodes.length; i = i + 1) {
                     returnObjects = returnObjects.concat(this.nodes[i].retrieve(item));
                 }
             }
@@ -276,13 +297,12 @@ class QuadTree {
      * Remove the given item from the quadtree.
      * (this function won't recalculate the impacted node)
      * @name remove
-     * @memberOf me.QuadTree
-     * @function
-     * @param {Object} object object to be removed
-     * @return true if the item was found and removed.
+     * @memberof QuadTree
+     * @param {object} item - object to be removed
+     * @returns {boolean} true if the item was found and removed.
      */
      remove(item) {
-        var found = false;
+        let found = false;
 
         if (typeof (item.getBounds) === "undefined") {
             // ignore object that cannot be added in the first place
@@ -292,10 +312,10 @@ class QuadTree {
         //if we have subnodes ...
         if (this.nodes.length > 0) {
             // determine to which node the item belongs to
-            var index = this.getIndex(item);
+            let index = this.getIndex(item);
 
             if (index !== -1) {
-                found = utils.array.remove(this.nodes[index], item);
+                found = arrayUtil.remove(this.nodes[index], item);
                 // trim node if empty
                 if (found && this.nodes[index].isPrunable()) {
                     this.nodes.splice(index, 1);
@@ -306,7 +326,7 @@ class QuadTree {
         if (found === false) {
             // try and remove the item from the list of items in this node
             if (this.objects.indexOf(item) !== -1) {
-                utils.array.remove(this.objects, item);
+                arrayUtil.remove(this.objects, item);
                 found = true;
             }
         }
@@ -317,9 +337,8 @@ class QuadTree {
     /**
      * return true if the node is prunable
      * @name isPrunable
-     * @memberOf me.QuadTree
-     * @function
-     * @return true if the node is prunable
+     * @memberof QuadTree
+     * @returns {boolean} true if the node is prunable
      */
     isPrunable() {
         return !(this.hasChildren() || (this.objects.length > 0));
@@ -328,13 +347,12 @@ class QuadTree {
     /**
      * return true if the node has any children
      * @name hasChildren
-     * @memberOf me.QuadTree
-     * @function
-     * @return true if the node has any children
+     * @memberof QuadTree
+     * @returns {boolean} true if the node has any children
      */
     hasChildren() {
-        for (var i = 0; i < this.nodes.length; i = i + 1) {
-            var subnode = this.nodes[i];
+        for (let i = 0; i < this.nodes.length; i = i + 1) {
+            const subnode = this.nodes[i];
             if (subnode.length > 0 || subnode.objects.length > 0) {
                 return true;
             }
@@ -345,13 +363,13 @@ class QuadTree {
     /**
      * clear the quadtree
      * @name clear
-     * @memberOf me.QuadTree
-     * @function
+     * @memberof QuadTree
+     * @param {Bounds} [bounds=this.bounds] - the bounds to be cleared
      */
     clear(bounds) {
         this.objects.length = 0;
 
-        for (var i = 0; i < this.nodes.length; i++) {
+        for (let i = 0; i < this.nodes.length; i++) {
             this.nodes[i].clear();
             // recycle the quadTree object
             QT_ARRAY_PUSH(this.nodes[i]);
@@ -365,5 +383,3 @@ class QuadTree {
         }
     }
 }
-
-export default QuadTree;

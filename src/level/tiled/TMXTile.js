@@ -1,35 +1,29 @@
 import Matrix2d from "./../../math/matrix2.js";
 import Sprite from "./../../renderable/sprite.js";
 import Bounds from "./../../physics/bounds.js";
-
-// bitmask constants to check for flipped & rotated tiles
-var TMX_FLIP_H          = 0x80000000,
-    TMX_FLIP_V          = 0x40000000,
-    TMX_FLIP_AD         = 0x20000000,
-    TMX_CLEAR_BIT_MASK  = ~(0x80000000 | 0x40000000 | 0x20000000);
+import { TMX_FLIP_V, TMX_FLIP_H, TMX_FLIP_AD, TMX_CLEAR_BIT_MASK } from "./constants.js";
 
 /**
+ * @classdesc
  * a basic tile object
- * @class
- * @extends me.Bounds
- * @memberOf me
- * @constructor
- * @param {Number} x x index of the Tile in the map
- * @param {Number} y y index of the Tile in the map
- * @param {Number} gid tile gid
- * @param {me.TMXTileset} tileset the corresponding tileset object
+ * @augments Bounds
  */
-class Tile extends Bounds {
-
+ export default class Tile extends Bounds {
+    /**
+     * @param {number} x - x index of the Tile in the map
+     * @param {number} y - y index of the Tile in the map
+     * @param {number} gid - tile gid
+     * @param {TMXTileset} tileset - the corresponding tileset object
+     */
     constructor(x, y, gid, tileset) {
-        var width, height;
+        let width, height;
 
         // call the parent constructor
         super();
 
         // determine the tile size
         if (tileset.isCollection) {
-            var image = tileset.getTileImage(gid & TMX_CLEAR_BIT_MASK);
+            let image = tileset.getTileImage(gid & TMX_CLEAR_BIT_MASK);
             width = image.width;
             height = image.height;
         } else {
@@ -41,9 +35,7 @@ class Tile extends Bounds {
 
         /**
          * tileset
-         * @public
-         * @type me.TMXTileset
-         * @name me.Tile#tileset
+         * @type {TMXTileset}
          */
         this.tileset = tileset;
 
@@ -59,38 +51,31 @@ class Tile extends Bounds {
 
         /**
          * tileId
-         * @public
-         * @type Number
-         * @name me.Tile#tileId
+         * @type {number}
          */
         this.tileId = gid;
+
         /**
-         * True if the tile is flipped horizontally<br>
-         * @public
-         * @type Boolean
-         * @name me.Tile#flipX
+         * True if the tile is flipped horizontally
+         * @type {boolean}
          */
         this.flippedX  = (this.tileId & TMX_FLIP_H) !== 0;
+
         /**
-         * True if the tile is flipped vertically<br>
-         * @public
-         * @type Boolean
-         * @name me.Tile#flippedY
+         * True if the tile is flipped vertically
+         * @type {boolean}
          */
         this.flippedY  = (this.tileId & TMX_FLIP_V) !== 0;
+
         /**
-         * True if the tile is flipped anti-diagonally<br>
-         * @public
-         * @type Boolean
-         * @name me.Tile#flippedAD
+         * True if the tile is flipped anti-diagonally
+         * @type {boolean}
          */
         this.flippedAD = (this.tileId & TMX_FLIP_AD) !== 0;
 
         /**
-         * Global flag that indicates if the tile is flipped<br>
-         * @public
-         * @type Boolean
-         * @name me.Tile#flipped
+         * Global flag that indicates if the tile is flipped
+         * @type {boolean}
          */
         this.flipped = this.flippedX || this.flippedY || this.flippedAD;
 
@@ -108,7 +93,6 @@ class Tile extends Bounds {
 
     /**
      * set the transformation matrix for this tile
-     * @return {me.Matrix2d) a transformation matrix
      * @ignore
      */
     setTileTransform(transform) {
@@ -132,20 +116,17 @@ class Tile extends Bounds {
 
     /**
      * return a renderable object for this Tile object
-     * @name me.Tile#getRenderable
-     * @public
-     * @function
-     * @param {Object} [settings] see {@link me.Sprite}
-     * @return {me.Renderable} a me.Sprite object
+     * @param {object} [settings] - see {@link Sprite}
+     * @returns {Renderable} a me.Sprite object
      */
     getRenderable(settings) {
-        var renderable;
-        var tileset = this.tileset;
+        let renderable;
+        let tileset = this.tileset;
 
         if (tileset.animations.has(this.tileId)) {
-            var frames = [];
-            var frameId = [];
-            (tileset.animations.get(this.tileId).frames).forEach(function (frame) {
+            let frames = [];
+            let frameId = [];
+            (tileset.animations.get(this.tileId).frames).forEach((frame) => {
                 frameId.push(frame.tileid);
                 frames.push({
                     name : "" + frame.tileid,
@@ -158,7 +139,7 @@ class Tile extends Bounds {
 
         } else {
             if (tileset.isCollection === true) {
-                var image = tileset.getTileImage(this.tileId);
+                let image = tileset.getTileImage(this.tileId);
                 renderable = new Sprite(0, 0,
                     Object.assign({
                         image: image
@@ -184,5 +165,4 @@ class Tile extends Bounds {
 
         return renderable;
     }
-};
-export default Tile;
+}

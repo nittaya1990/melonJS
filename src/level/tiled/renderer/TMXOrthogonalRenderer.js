@@ -5,14 +5,12 @@ import TMXRenderer from "./TMXRenderer.js";
 /**
  * @classdesc
  * an Orthogonal Map Renderder
- * @class TMXOrthogonalRenderer
- * @memberOf me
- * @extends me.TMXRenderer
- * @constructor
- * @param {me.TMXTileMap} map the TMX map
+ * @augments TMXRenderer
  */
-class TMXOrthogonalRenderer extends TMXRenderer {
-    // constructor
+ export default class TMXOrthogonalRenderer extends TMXRenderer {
+    /**
+     * @param {TMXTileMap} map - the TMX map
+     */
     constructor(map) {
         super(
             map.cols,
@@ -38,7 +36,7 @@ class TMXOrthogonalRenderer extends TMXRenderer {
      * @ignore
      */
     pixelToTileCoords(x, y, v) {
-        var ret = v || new Vector2d();
+        let ret = v || new Vector2d();
         return ret.set(
             x / this.tilewidth,
             y / this.tileheight
@@ -51,7 +49,7 @@ class TMXOrthogonalRenderer extends TMXRenderer {
      * @ignore
      */
     tileToPixelCoords(x, y, v) {
-        var ret = v || new Vector2d();
+        let ret = v || new Vector2d();
         return ret.set(
             x * this.tilewidth,
             y * this.tileheight
@@ -77,7 +75,7 @@ class TMXOrthogonalRenderer extends TMXRenderer {
      * @ignore
      */
     drawTile(renderer, x, y, tmxTile) {
-        var tileset = tmxTile.tileset;
+        let tileset = tmxTile.tileset;
         // draw the tile
         tileset.drawTile(
             renderer,
@@ -92,16 +90,16 @@ class TMXOrthogonalRenderer extends TMXRenderer {
      * @ignore
      */
     drawTileLayer(renderer, layer, rect) {
-        var incX = 1, incY = 1;
+        let incX = 1, incY = 1;
 
         // get top-left and bottom-right tile position
-        var start = this.pixelToTileCoords(
+        let start = this.pixelToTileCoords(
             Math.max(rect.pos.x - (layer.maxTileSize.width - layer.tilewidth), 0),
             Math.max(rect.pos.y - (layer.maxTileSize.height - layer.tileheight), 0),
             pool.pull("Vector2d")
         ).floorSelf();
 
-        var end = this.pixelToTileCoords(
+        let end = this.pixelToTileCoords(
             rect.pos.x + rect.width + this.tilewidth,
             rect.pos.y + rect.height + this.tileheight,
             pool.pull("Vector2d")
@@ -135,9 +133,9 @@ class TMXOrthogonalRenderer extends TMXRenderer {
         }
 
         // main drawing loop
-        for (var y = start.y; y !== end.y; y+= incY) {
-            for (var x = start.x; x !== end.x; x+= incX) {
-                var tmxTile = layer.cellAt(x, y, false);
+        for (let y = start.y; y !== end.y; y+= incY) {
+            for (let x = start.x; x !== end.x; x+= incX) {
+                let tmxTile = layer.cellAt(x, y, false);
                 if (tmxTile) {
                     this.drawTile(renderer, x, y, tmxTile);
                 }
@@ -147,6 +145,5 @@ class TMXOrthogonalRenderer extends TMXRenderer {
         pool.push(start);
         pool.push(end);
     }
-};
+}
 
-export default TMXOrthogonalRenderer;

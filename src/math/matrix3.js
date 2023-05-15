@@ -3,16 +3,12 @@ import { EPSILON } from "./math.js";
 
 /**
  * @classdesc
- * a 4x4 Matrix3d Object<br>
- * @class Matrix3d
- * @memberOf me
- * @constructor
- * @param {me.Matrix3d} [mat3d] An instance of me.Matrix3d to copy from
- * @param {Number[]} [arguments...] Matrix elements. See {@link me.Matrix3d.setTransform}
+ * a 4x4 Matrix3d Object
  */
-
-class Matrix3d {
-
+ export default class Matrix3d {
+    /**
+     * @param {(Matrix3d|...number)} args - An instance of me.Matrix3d to copy from, or individual Matrix components (See {@link Matrix3d.setTransform}). If not arguments are given, the matrix will be set to Identity.
+     */
     constructor(...args) {
         this.onResetEvent(...args);
     }
@@ -39,10 +35,9 @@ class Matrix3d {
     /**
      * tx component of the matrix
      * @public
-     * @type {Number}
-     * @readonly
+     * @type {number}
      * @name tx
-     * @memberOf me.Matrix3d
+     * @memberof Matrix3d
      */
     get tx() {
         return this.val[12];
@@ -51,10 +46,9 @@ class Matrix3d {
     /**
      * ty component of the matrix
      * @public
-     * @type {Number}
-     * @readonly
+     * @type {number}
      * @name ty
-     * @memberOf me.Matrix3d
+     * @memberof Matrix3d
      */
     get ty() {
         return this.val[13];
@@ -63,10 +57,9 @@ class Matrix3d {
     /**
      * ty component of the matrix
      * @public
-     * @type {Number}
-     * @readonly
+     * @type {number}
      * @name tz
-     * @memberOf me.Matrix3d
+     * @memberof Matrix3d
      */
     get tz() {
         return this.val[14];
@@ -77,9 +70,8 @@ class Matrix3d {
      * the identity matrix and parameters position : <br>
      * <img src="images/identity-matrix_2x.png"/>
      * @name identity
-     * @memberOf me.Matrix3d
-     * @function
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     identity() {
         return this.setTransform(
@@ -93,28 +85,27 @@ class Matrix3d {
     /**
      * set the matrix to the specified value
      * @name setTransform
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {Number} m00
-     * @param {Number} m01
-     * @param {Number} m02
-     * @param {Number} m03
-     * @param {Number} m10
-     * @param {Number} m11
-     * @param {Number} m12
-     * @param {Number} m13
-     * @param {Number} m20
-     * @param {Number} m21
-     * @param {Number} m22
-     * @param {Number} m23
-     * @param {Number} m30
-     * @param {Number} m31
-     * @param {Number} m32
-     * @param {Number} m33
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {number} m00
+     * @param {number} m01
+     * @param {number} m02
+     * @param {number} m03
+     * @param {number} m10
+     * @param {number} m11
+     * @param {number} m12
+     * @param {number} m13
+     * @param {number} m20
+     * @param {number} m21
+     * @param {number} m22
+     * @param {number} m23
+     * @param {number} m30
+     * @param {number} m31
+     * @param {number} m32
+     * @param {number} m33
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     setTransform(m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33) {
-        var a = this.val;
+        let a = this.val;
 
         a[0] = m00;
         a[1] = m01;
@@ -139,26 +130,24 @@ class Matrix3d {
     /**
      * Copies over the values from another me.Matrix3d.
      * @name copy
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {me.Matrix3d} m the matrix object to copy from
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {Matrix3d} m - the matrix object to copy from
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
-    copy(b) {
-        this.val.set(b.val);
+    copy(m) {
+        this.val.set(m.val);
         return this;
     }
 
     /**
      * Copies over the upper-left 2x2 values from the given me.Matrix2d
      * @name fromMat2d
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {me.Matrix2d} m the matrix object to copy from
-     * @return {me.Matrix2d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {Matrix2d} m - the matrix object to copy from
+     * @returns {Matrix2d} Reference to this object for method chaining
      */
     fromMat2d(m) {
-        var b = m.val;
+        let b = m.val;
         return this.setTransform(
             b[0], b[3], b[6], 0,
             b[1], b[4], b[7], 0,
@@ -171,20 +160,19 @@ class Matrix3d {
     /**
      * multiply both matrix
      * @name multiply
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {me.Matrix3d} m Other matrix
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {Matrix3d} m - Other matrix
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     multiply(m) {
-        var a = this.val;
-        var b = m.val;
+        let a = this.val;
+        let b = m.val;
 
-        var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
-        var a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
-        var a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
-        var a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
-        var b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
+        let a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+        let a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+        let a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        let a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+        let b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
 
         a[0] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
         a[1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
@@ -227,12 +215,11 @@ class Matrix3d {
     /**
      * Transpose the value of this matrix.
      * @name transpose
-     * @memberOf me.Matrix3d
-     * @function
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     transpose() {
-        var a = this.val,
+        let a = this.val,
             a01 = a[1],
             a02 = a[2],
             a03 = a[3],
@@ -259,35 +246,34 @@ class Matrix3d {
     /**
      * invert this matrix, causing it to apply the opposite transformation.
      * @name invert
-     * @memberOf me.Matrix3d
-     * @function
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     invert() {
-         var a = this.val;
+         let a = this.val;
 
-         var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
-         var a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
-         var a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
-         var a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+         let a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+         let a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+         let a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+         let a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
 
-         var b00 = a00 * a11 - a01 * a10;
-         var b01 = a00 * a12 - a02 * a10;
-         var b02 = a00 * a13 - a03 * a10;
-         var b03 = a01 * a12 - a02 * a11;
+         let b00 = a00 * a11 - a01 * a10;
+         let b01 = a00 * a12 - a02 * a10;
+         let b02 = a00 * a13 - a03 * a10;
+         let b03 = a01 * a12 - a02 * a11;
 
-         var b04 = a01 * a13 - a03 * a11;
-         var b05 = a02 * a13 - a03 * a12;
-         var b06 = a20 * a31 - a21 * a30;
-         var b07 = a20 * a32 - a22 * a30;
+         let b04 = a01 * a13 - a03 * a11;
+         let b05 = a02 * a13 - a03 * a12;
+         let b06 = a20 * a31 - a21 * a30;
+         let b07 = a20 * a32 - a22 * a30;
 
-         var b08 = a20 * a33 - a23 * a30;
-         var b09 = a21 * a32 - a22 * a31;
-         var b10 = a21 * a33 - a23 * a31;
-         var b11 = a22 * a33 - a23 * a32;
+         let b08 = a20 * a33 - a23 * a30;
+         let b09 = a21 * a32 - a22 * a31;
+         let b10 = a21 * a33 - a23 * a31;
+         let b11 = a22 * a33 - a23 * a32;
 
          // Calculate the determinant
-         var det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+         let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
 
          if (!det)
          {
@@ -319,18 +305,17 @@ class Matrix3d {
     /**
      * apply the current transform to the given 2d or 3d vector
      * @name apply
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} vector the vector object to be transformed
-     * @return {me.Vector2d|me.Vector3d} result vector object.
+     * @memberof Matrix3d
+     * @param {Vector2d|Vector3d} v - the vector object to be transformed
+     * @returns {Vector2d|Vector3d} result vector object.
      */
      apply(v) {
-        var a = this.val,
+        let a = this.val,
         x = v.x,
         y = v.y,
         z = (typeof v.z !== "undefined") ? v.z : 1;
 
-        var w = (a[3] * x + a[7] * y + a[11] * z + a[15]) || 1.0;
+        let w = (a[3] * x + a[7] * y + a[11] * z + a[15]) || 1.0;
 
         v.x = (a[0] * x + a[4] * y + a[8] * z + a[12]) / w;
         v.y = (a[1] * x + a[5] * y + a[9] * z + a[13]) / w;
@@ -345,14 +330,13 @@ class Matrix3d {
      /**
       * apply the inverted current transform to the given 2d or 3d vector
       * @name applyInverse
-      * @memberOf me.Matrix3d
-      * @function
-      * @param {me.Vector2d|me.Vector3d} vector the vector object to be transformed
-      * @return {me.Vector2d|me.Vector3d} result vector object.
+      * @memberof Matrix3d
+      * @param {Vector2d|Vector3d} v - the vector object to be transformed
+      * @returns {Vector2d|Vector3d} result vector object.
       */
      applyInverse(v) {
          // invert the current matrix
-         var im = pool.pull("Matrix3d", this).invert();
+         let im = pool.pull("Matrix3d", this).invert();
 
          // apply the inverted matrix
          im.apply(v);
@@ -366,21 +350,20 @@ class Matrix3d {
      * generate an orthogonal projection matrix, with the result replacing the current matrix
      * <img src="images/glOrtho.gif"/><br>
      * @name ortho
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {Number} left farthest left on the x-axis
-     * @param {Number} right farthest right on the x-axis
-     * @param {Number} bottom farthest down on the y-axis
-     * @param {Number} top farthest up on the y-axis
-     * @param {Number} near distance to the near clipping plane along the -Z axis
-     * @param {Number} far distance to the far clipping plane along the -Z axis
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {number} left - farthest left on the x-axis
+     * @param {number} right - farthest right on the x-axis
+     * @param {number} bottom - farthest down on the y-axis
+     * @param {number} top - farthest up on the y-axis
+     * @param {number} near - distance to the near clipping plane along the -Z axis
+     * @param {number} far - distance to the far clipping plane along the -Z axis
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     ortho(left, right, bottom, top, near, far) {
-        var a = this.val;
-        var leftRight = 1.0 / (left - right);
-        var bottomTop = 1.0 / (bottom - top);
-        var nearFar = 1.0 / (near - far);
+        let a = this.val;
+        let leftRight = 1.0 / (left - right);
+        let bottomTop = 1.0 / (bottom - top);
+        let nearFar = 1.0 / (near - far);
 
         a[0] = -2.0 * leftRight;
         a[1] = 0.0;
@@ -405,33 +388,29 @@ class Matrix3d {
     /**
      * scale the matrix
      * @name scale
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {Number} x a number representing the abscissa of the scaling vector.
-     * @param {Number} [y=x] a number representing the ordinate of the scaling vector.
-     * @param {Number} [z=0] a number representing the depth vector
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {number} x - a number representing the abscissa of the scaling vector.
+     * @param {number} [y=x] - a number representing the ordinate of the scaling vector.
+     * @param {number} [z=0] - a number representing the depth vector
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
-    scale(x, y, z) {
-        var a = this.val,
-           _x = x,
-           _y = typeof(y) === "undefined" ? _x : y,
-           _z = typeof(z) === "undefined" ?  0 : z;
+    scale(x, y = x, z = 0) {
+        let a = this.val;
 
-        a[0] = a[0] * _x;
-        a[1] = a[1] * _x;
-        a[2] = a[2] * _x;
-        a[3] = a[3] * _x;
+        a[0] = a[0] * x;
+        a[1] = a[1] * x;
+        a[2] = a[2] * x;
+        a[3] = a[3] * x;
 
-        a[4] = a[4] * _y;
-        a[5] = a[5] * _y;
-        a[6] = a[6] * _y;
-        a[7] = a[7] * _y;
+        a[4] = a[4] * y;
+        a[5] = a[5] * y;
+        a[6] = a[6] * y;
+        a[7] = a[7] * y;
 
-        a[8] = a[8] * _z;
-        a[9] = a[9] * _z;
-        a[10] = a[10] * _z;
-        a[11] = a[11] * _z;
+        a[8] = a[8] * z;
+        a[9] = a[9] * z;
+        a[10] = a[10] * z;
+        a[11] = a[11] * z;
 
         return this;
     }
@@ -439,10 +418,9 @@ class Matrix3d {
     /**
      * adds a 2D scaling transformation.
      * @name scaleV
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} vector scaling vector
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {Vector2d|Vector3d} v - scaling vector
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     scaleV(v) {
         return this.scale(v.x, v.y, v.z);
@@ -451,10 +429,9 @@ class Matrix3d {
     /**
      * specifies a 2D scale operation using the [sx, 1] scaling vector
      * @name scaleX
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {Number} x x scaling vector
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {number} x - x scaling vector
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     scaleX(x) {
         return this.scale(x, 1);
@@ -463,10 +440,9 @@ class Matrix3d {
     /**
      * specifies a 2D scale operation using the [1,sy] scaling vector
      * @name scaleY
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {Number} y y scaling vector
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {number} y - y scaling vector
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     scaleY(y) {
         return this.scale(1, y);
@@ -475,103 +451,102 @@ class Matrix3d {
     /**
      * rotate this matrix (counter-clockwise) by the specified angle (in radians).
      * @name rotate
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {Number} angle Rotation angle in radians.
-     * @param {me.Vector3d} axis the axis to rotate around
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {number} angle - Rotation angle in radians.
+     * @param {Vector3d} v - the axis to rotate around
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     rotate(angle, v) {
-        var a = this.val,
-            x = v.x,
-            y = v.y,
-            z = v.z;
+        if (angle !== 0) {
+            let a = this.val,
+                x = v.x,
+                y = v.y,
+                z = v.z;
 
-        var len = Math.sqrt(x * x + y * y + z * z);
+            let len = Math.sqrt(x * x + y * y + z * z);
 
-        var s, c, t;
-        var a00, a01, a02, a03;
-        var a10, a11, a12, a13;
-        var a20, a21, a22, a23;
-        var b00, b01, b02;
-        var b10, b11, b12;
-        var b20, b21, b22;
+            let s, c, t;
+            let a00, a01, a02, a03;
+            let a10, a11, a12, a13;
+            let a20, a21, a22, a23;
+            let b00, b01, b02;
+            let b10, b11, b12;
+            let b20, b21, b22;
 
-        if (len < EPSILON) {
-            return null;
+            if (len < EPSILON) {
+                return null;
+            }
+
+            len = 1 / len;
+            x *= len;
+            y *= len;
+            z *= len;
+
+            s = Math.sin(angle);
+            c = Math.cos(angle);
+            t = 1 - c;
+
+            a00 = a[0];
+            a01 = a[1];
+            a02 = a[2];
+            a03 = a[3];
+            a10 = a[4];
+            a11 = a[5];
+            a12 = a[6];
+            a13 = a[7];
+            a20 = a[8];
+            a21 = a[9];
+            a22 = a[10];
+            a23 = a[11];
+
+            // Construct the elements of the rotation matrix
+            b00 = x * x * t + c;
+            b01 = y * x * t + z * s;
+            b02 = z * x * t - y * s;
+            b10 = x * y * t - z * s;
+            b11 = y * y * t + c;
+            b12 = z * y * t + x * s;
+            b20 = x * z * t + y * s;
+            b21 = y * z * t - x * s;
+            b22 = z * z * t + c;
+
+            // Perform rotation-specific matrix multiplication
+            a[0] = a00 * b00 + a10 * b01 + a20 * b02;
+            a[1] = a01 * b00 + a11 * b01 + a21 * b02;
+            a[2] = a02 * b00 + a12 * b01 + a22 * b02;
+            a[3] = a03 * b00 + a13 * b01 + a23 * b02;
+            a[4] = a00 * b10 + a10 * b11 + a20 * b12;
+            a[5] = a01 * b10 + a11 * b11 + a21 * b12;
+            a[6] = a02 * b10 + a12 * b11 + a22 * b12;
+            a[7] = a03 * b10 + a13 * b11 + a23 * b12;
+            a[8] = a00 * b20 + a10 * b21 + a20 * b22;
+            a[9] = a01 * b20 + a11 * b21 + a21 * b22;
+            a[10] = a02 * b20 + a12 * b21 + a22 * b22;
+            a[11] = a03 * b20 + a13 * b21 + a23 * b22;
         }
-
-        len = 1 / len;
-        x *= len;
-        y *= len;
-        z *= len;
-
-        s = Math.sin(angle);
-        c = Math.cos(angle);
-        t = 1 - c;
-
-        a00 = a[0];
-        a01 = a[1];
-        a02 = a[2];
-        a03 = a[3];
-        a10 = a[4];
-        a11 = a[5];
-        a12 = a[6];
-        a13 = a[7];
-        a20 = a[8];
-        a21 = a[9];
-        a22 = a[10];
-        a23 = a[11];
-
-        // Construct the elements of the rotation matrix
-        b00 = x * x * t + c;
-        b01 = y * x * t + z * s;
-        b02 = z * x * t - y * s;
-        b10 = x * y * t - z * s;
-        b11 = y * y * t + c;
-        b12 = z * y * t + x * s;
-        b20 = x * z * t + y * s;
-        b21 = y * z * t - x * s;
-        b22 = z * z * t + c;
-
-        // Perform rotation-specific matrix multiplication
-        a[0] = a00 * b00 + a10 * b01 + a20 * b02;
-        a[1] = a01 * b00 + a11 * b01 + a21 * b02;
-        a[2] = a02 * b00 + a12 * b01 + a22 * b02;
-        a[3] = a03 * b00 + a13 * b01 + a23 * b02;
-        a[4] = a00 * b10 + a10 * b11 + a20 * b12;
-        a[5] = a01 * b10 + a11 * b11 + a21 * b12;
-        a[6] = a02 * b10 + a12 * b11 + a22 * b12;
-        a[7] = a03 * b10 + a13 * b11 + a23 * b12;
-        a[8] = a00 * b20 + a10 * b21 + a20 * b22;
-        a[9] = a01 * b20 + a11 * b21 + a21 * b22;
-        a[10] = a02 * b20 + a12 * b21 + a22 * b22;
-        a[11] = a03 * b20 + a13 * b21 + a23 * b22;
-
         return this;
     }
 
     /**
      * translate the matrix position using the given vector
      * @name translate
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {Number} x a number representing the abscissa of the vector.
-     * @param {Number} [y=x] a number representing the ordinate of the vector.
-     * @param {Number} [z=0] a number representing the depth of the vector
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @method
+     * @param {number} x - a number representing the abscissa of the vector.
+     * @param {number} [y=x] - a number representing the ordinate of the vector.
+     * @param {number} [z=0] - a number representing the depth of the vector
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
     /**
      * translate the matrix by a vector on the horizontal and vertical axis
      * @name translateV
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {me.Vector2d|me.Vector3d} v the vector to translate the matrix by
-     * @return {me.Matrix3d} Reference to this object for method chaining
+     * @memberof Matrix3d
+     * @param {Vector2d|Vector3d} v - the vector to translate the matrix by
+     * @returns {Matrix3d} Reference to this object for method chaining
      */
-    translate(x, y, z) {
-        var a = this.val;
-        var _x, _y, _z;
+    translate() {
+        let a = this.val;
+        let _x, _y, _z;
 
         if (arguments.length > 1 ) {
             // x, y (, z)
@@ -596,12 +571,11 @@ class Matrix3d {
     /**
      * returns true if the matrix is an identity matrix.
      * @name isIdentity
-     * @memberOf me.Matrix3d
-     * @function
-     * @return {Boolean}
-     **/
+     * @memberof Matrix3d
+     * @returns {boolean}
+     */
     isIdentity() {
-        var a = this.val;
+        let a = this.val;
 
         return (
             (a[0] === 1) &&
@@ -626,14 +600,13 @@ class Matrix3d {
     /**
      * return true if the two matrices are identical
      * @name equals
-     * @memberOf me.Matrix3d
-     * @function
-     * @param {me.Matrix3d} m the other matrix
-     * @return {Boolean} true if both are equals
+     * @memberof Matrix3d
+     * @param {Matrix3d} m - the other matrix
+     * @returns {boolean} true if both are equals
      */
     equals(m) {
-        var b = m.val;
-        var a = this.val;
+        let b = m.val;
+        let a = this.val;
 
         return (
             (a[0] === b[0]) &&
@@ -658,9 +631,8 @@ class Matrix3d {
     /**
      * Clone the Matrix
      * @name clone
-     * @memberOf me.Matrix3d
-     * @function
-     * @return {me.Matrix3d}
+     * @memberof Matrix3d
+     * @returns {Matrix3d}
      */
     clone() {
         return pool.pull("Matrix3d", this);
@@ -669,9 +641,8 @@ class Matrix3d {
     /**
      * return an array representation of this Matrix
      * @name toArray
-     * @memberOf me.Matrix3d
-     * @function
-     * @return {Float32Array}
+     * @memberof Matrix3d
+     * @returns {Float32Array}
      */
     toArray() {
         return this.val;
@@ -680,12 +651,11 @@ class Matrix3d {
     /**
      * convert the object to a string representation
      * @name toString
-     * @memberOf me.Matrix3d
-     * @function
-     * @return {String}
+     * @memberof Matrix3d
+     * @returns {string}
      */
     toString() {
-        var a = this.val;
+        let a = this.val;
 
         return "me.Matrix3d(" +
             a[0] + ", " + a[1] + ", " + a[2] + ", " + a[3] + ", " +
@@ -694,6 +664,5 @@ class Matrix3d {
             a[12] + ", " + a[13] + ", " + a[14] + ", " + a[15] +
         ")";
     }
-};
+}
 
-export default Matrix3d;

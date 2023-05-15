@@ -1,339 +1,76 @@
-import { createCanvas } from "./../video/video.js";
 import pool from "./../system/pooling.js";
-import Renderable from "./../renderable/renderable.js";
-import ParticleContainer from "./particlecontainer.js";
+import ParticleEmitterSettings from "./settings.js";
 import { randomFloat } from "./../math/math.js";
+import Container from "./../renderable/container.js";
 
-
-
-// generate a default image for the particles
-var pixel = (function () {
-    var canvas = createCanvas(1, 1);
-    var context = canvas.getContext("2d");
-    context.fillStyle = "#fff";
-    context.fillRect(0, 0, 1, 1);
-    return canvas;
-})();
 
 /**
- * me.ParticleEmitterSettings contains the default settings for me.ParticleEmitter.<br>
- * @private
- * @class
- * @memberOf me
- * @see me.ParticleEmitter
+ * @ignore
  */
-var ParticleEmitterSettings = {
-    /**
-     * Width of the particle spawn area.<br>
-     * @public
-     * @type Number
-     * @name width
-     * @memberOf me.ParticleEmitterSettings
-     * @default 0
-     */
-    width : 0,
+function createDefaultParticleTexture(w = 8, h = 8) {
+    let defaultParticleTexture = pool.pull("CanvasTexture", w, h, { offscreenCanvas: true });
 
-    /**
-     * Height of the particle spawn area.<br>
-     * @public
-     * @type Number
-     * @name height
-     * @memberOf me.ParticleEmitterSettings
-     * @default 0
-     */
-    height : 0,
+    defaultParticleTexture.context.fillStyle = "#fff";
+    defaultParticleTexture.context.fillRect(0, 0, w, h);
 
-    /**
-     * Image used for particles.<br>
-     * @public
-     * @type CanvasImageSource
-     * @name image
-     * @memberOf me.ParticleEmitterSettings
-     * @default 1x1 white pixel
-     * @see http://www.whatwg.org/specs/web-apps/current-work/multipage/the-canvas-element.html#canvasimagesource
-     */
-    image : pixel,
-
-    /**
-     * Total number of particles in the emitter.<br>
-     * @public
-     * @type Number
-     * @name totalParticles
-     * @default 50
-     * @memberOf me.ParticleEmitterSettings
-     */
-    totalParticles : 50,
-
-    /**
-     * Start angle for particle launch in Radians.<br>
-     * @public
-     * @type Number
-     * @name angle
-     * @default Math.PI / 2
-     * @memberOf me.ParticleEmitterSettings
-     */
-    angle : Math.PI / 2,
-
-    /**
-     * Variation in the start angle for particle launch in Radians.<br>
-     * @public
-     * @type Number
-     * @name angleVariation
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     */
-    angleVariation : 0,
-
-    /**
-     * Minimum time each particle lives once it is emitted in ms.<br>
-     * @public
-     * @type Number
-     * @name minLife
-     * @default 1000
-     * @memberOf me.ParticleEmitterSettings
-     */
-    minLife : 1000,
-
-    /**
-     * Maximum time each particle lives once it is emitted in ms.<br>
-     * @public
-     * @type Number
-     * @name maxLife
-     * @default 3000
-     * @memberOf me.ParticleEmitterSettings
-     */
-    maxLife : 3000,
-
-    /**
-     * Start speed of particles.<br>
-     * @public
-     * @type Number
-     * @name speed
-     * @default 2
-     * @memberOf me.ParticleEmitterSettings
-     */
-    speed : 2,
-
-    /**
-     * Variation in the start speed of particles.<br>
-     * @public
-     * @type Number
-     * @name speedVariation
-     * @default 1
-     * @memberOf me.ParticleEmitterSettings
-     */
-    speedVariation : 1,
-
-    /**
-     * Minimum start rotation for particles sprites in Radians.<br>
-     * @public
-     * @type Number
-     * @name minRotation
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     */
-    minRotation : 0,
-
-    /**
-     * Maximum start rotation for particles sprites in Radians.<br>
-     * @public
-     * @type Number
-     * @name maxRotation
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     */
-    maxRotation : 0,
-
-    /**
-     * Minimum start scale ratio for particles (1 = no scaling).<br>
-     * @public
-     * @type Number
-     * @name minStartScale
-     * @default 1
-     * @memberOf me.ParticleEmitterSettings
-     */
-    minStartScale : 1,
-
-    /**
-     * Maximum start scale ratio for particles (1 = no scaling).<br>
-     * @public
-     * @type Number
-     * @name maxStartScale
-     * @default 1
-     * @memberOf me.ParticleEmitterSettings
-     */
-    maxStartScale : 1,
-
-    /**
-     * Minimum end scale ratio for particles.<br>
-     * @public
-     * @type Number
-     * @name minEndScale
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     */
-    minEndScale : 0,
-
-    /**
-     * Maximum end scale ratio for particles.<br>
-     * @public
-     * @type Number
-     * @name maxEndScale
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     */
-    maxEndScale : 0,
-
-    /**
-     * Vertical force (Gravity) for each particle.<br>
-     * @public
-     * @type Number
-     * @name gravity
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     * @see me.game.world.gravity
-     */
-    gravity : 0,
-
-    /**
-     * Horizontal force (like a Wind) for each particle.<br>
-     * @public
-     * @type Number
-     * @name wind
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     */
-    wind : 0,
-
-    /**
-     * Update the rotation of particle in accordance the particle trajectory.<br>
-     * The particle sprite should aim at zero angle (draw from left to right).<br>
-     * Override the particle minRotation and maxRotation.<br>
-     * @public
-     * @type Boolean
-     * @name followTrajectory
-     * @default false
-     * @memberOf me.ParticleEmitterSettings
-     */
-    followTrajectory : false,
-
-    /**
-     * Enable the Texture Additive by canvas composite operation (lighter).<br>
-     * WARNING: Composite Operation may decreases performance!.<br>
-     * @public
-     * @type Boolean
-     * @name textureAdditive
-     * @default false
-     * @memberOf me.ParticleEmitterSettings
-     */
-    textureAdditive : false,
-
-    /**
-     * Update particles only in the viewport, remove it when out of viewport.<br>
-     * @public
-     * @type Boolean
-     * @name onlyInViewport
-     * @default true
-     * @memberOf me.ParticleEmitterSettings
-     */
-    onlyInViewport : true,
-
-    /**
-     * Render particles in screen space. <br>
-     * @public
-     * @type Boolean
-     * @name floating
-     * @default false
-     * @memberOf me.ParticleEmitterSettings
-     */
-    floating : false,
-
-    /**
-     * Maximum number of particles launched each time in this emitter (used only if emitter is Stream).<br>
-     * @public
-     * @type Number
-     * @name maxParticles
-     * @default 10
-     * @memberOf me.ParticleEmitterSettings
-     */
-    maxParticles : 10,
-
-    /**
-     * How often a particle is emitted in ms (used only if emitter is Stream).<br>
-     * Necessary that value is greater than zero.<br>
-     * @public
-     * @type Number
-     * @name frequency
-     * @default 100
-     * @memberOf me.ParticleEmitterSettings
-     */
-    frequency : 100,
-
-    /**
-     * Duration that the emitter releases particles in ms (used only if emitter is Stream).<br>
-     * After this period, the emitter stop the launch of particles.<br>
-     * @public
-     * @type Number
-     * @name duration
-     * @default Infinity
-     * @memberOf me.ParticleEmitterSettings
-     */
-    duration : Infinity,
-
-    /**
-     * Skip n frames after updating the particle system once. <br>
-     * This can be used to reduce the performance impact of emitters with many particles.<br>
-     * @public
-     * @type Number
-     * @name framesToSkip
-     * @default 0
-     * @memberOf me.ParticleEmitterSettings
-     */
-    framesToSkip : 0
-};
+    return defaultParticleTexture;
+}
 
 /**
+ * @classdesc
  * Particle Emitter Object.
- * @class
- * @extends Rect
- * @memberOf me
- * @constructor
- * @param {Number} x x-position of the particle emitter
- * @param {Number} y y-position of the particle emitter
- * @param {object} settings An object containing the settings for the particle emitter. See {@link me.ParticleEmitterSettings}
- * @example
- *
- * // Create a basic emitter at position 100, 100
- * var emitter = new me.ParticleEmitter(100, 100);
- *
- * // Adjust the emitter properties
- * emitter.totalParticles = 200;
- * emitter.minLife = 1000;
- * emitter.maxLife = 3000;
- * emitter.z = 10;
- *
- * // Add the emitter to the game world
- * me.game.world.addChild(emitter);
- *
- * // Launch all particles one time and stop, like a explosion
- * emitter.burstParticles();
- *
- * // Launch constantly the particles, like a fountain
- * emitter.streamParticles();
- *
- * // At the end, remove emitter from the game world
- * // call this in onDestroyEvent function
- * me.game.world.removeChild(emitter);
- *
+ * @augments Container
  */
-class ParticleEmitter extends Renderable {
-
+ export default class ParticleEmitter extends Container {
     /**
-     * @ignore
+     * @param {number} x - x position of the particle emitter
+     * @param {number} y - y position of the particle emitter
+     * @param {ParticleEmitterSettings} [settings=ParticleEmitterSettings] - the settings for the particle emitter.
+     * @example
+     * // Create a particle emitter at position 100, 100
+     * let emitter = new ParticleEmitter(100, 100, {
+     *     width: 16,
+     *     height : 16,
+     *     tint: "#f00",
+     *     totalParticles: 32,
+     *     angle: 0,
+     *     angleVariation: 6.283185307179586,
+     *     maxLife: 5,
+     *     speed: 3
+     * });
+     *
+     * // Add the emitter to the game world
+     * me.game.world.addChild(emitter);
+     *
+     * // Launch all particles one time and stop, like a explosion
+     * emitter.burstParticles();
+     *
+     * // Launch constantly the particles, like a fountain
+     * emitter.streamParticles();
+     *
+     * // At the end, remove emitter from the game world
+     * // call this in onDestroyEvent function
+     * me.game.world.removeChild(emitter);
      */
-    constructor(x, y, settings) {
+    constructor(x, y, settings = {}) {
         // call the super constructor
-        super(x, y, Infinity, Infinity);
+        super(
+            x, y,
+            settings.width | 1,
+            settings.height | 1
+        );
+
+        /**
+         * the current (active) emitter settings
+         * @public
+         * @type {ParticleEmitterSettings}
+         * @name settings
+         * @memberof ParticleEmitter
+         */
+        this.settings = {};
+
+        // center the emitter around the given coordinates
+        this.centerOn(x, y);
 
         // Emitter is Stream, launch particles constantly
         /** @ignore */
@@ -359,176 +96,95 @@ class ParticleEmitter extends Renderable {
         // don't sort the particles by z-index
         this.autoSort = false;
 
-        this.container = new ParticleContainer(this);
+        // count the updates
+        this._updateCount = 0;
 
-        /**
-         * @ignore
-         */
-        Object.defineProperty(this.pos, "z", {
-            /**
-             * @ignore
-             */
-            get : (function () { return this.container.pos.z; }).bind(this),
-            /**
-             * @ignore
-             */
-            set : (function (value) { this.container.pos.z = value; }).bind(this),
-            enumerable : true,
-            configurable : true
-        });
+        // internally store how much time was skipped when frames are skipped
+        this._dt = 0;
 
-        /**
-         * Floating property for particles, value is forwarded to the particle container <br>
-         * @type Boolean
-         * @name floating
-         * @memberOf me.ParticleEmitter
-         */
-        Object.defineProperty(this, "floating", {
-            /**
-             * @ignore
-             */
-            get : function () { return this.container.floating; },
-            /**
-             * @ignore
-             */
-            set : function (value) { this.container.floating = value; },
-            enumerable : true,
-            configurable : true
-        });
+        //this.anchorPoint.set(0, 0);
 
         // Reset the emitter to defaults
         this.reset(settings);
     }
 
     /**
-     * @ignore
+     * Reset the emitter with particle emitter settings.
+     * @param {ParticleEmitterSettings} settings - [optional] object with emitter settings. See {@link ParticleEmitterSettings}
      */
-    onActivateEvent() {
-        this.ancestor.addChild(this.container);
-        this.container.pos.z = this.pos.z;
-        if (!this.ancestor.autoSort) {
-            this.ancestor.sort();
+    reset(settings = {}) {
+        Object.assign(this.settings, ParticleEmitterSettings, settings);
+
+        if (typeof this.settings.image === "undefined") {
+            this._defaultParticle = createDefaultParticleTexture(settings.textureSize, settings.textureSize);
+            this.settings.image = this._defaultParticle.canvas;
         }
+
+        this.floating = this.settings.floating;
+
+        this.isDirty = true;
     }
 
     /**
-     * @ignore
-     */
-    onDeactivateEvent() {
-        if (this.ancestor.hasChild(this.container)) {
-            this.ancestor.removeChildNow(this.container);
-        }
-    }
-
-    /**
-     * @ignore
-     */
-    destroy() {
-        this.reset();
-    }
-
-    /**
-     * returns a random point inside the bounds x axis of this emitter
-     * @name getRandomPointX
-     * @memberOf me.ParticleEmitter
-     * @function
-     * @return {Number}
+     * returns a random point on the x axis within the bounds of this emitter
+     * @returns {number}
      */
     getRandomPointX() {
-        return this.pos.x + randomFloat(0, this.width);
+        return randomFloat(0, this.getBounds().width);
     }
 
     /**
-     * returns a random point inside the bounds y axis of this emitter
-     * @name getRandomPointY
-     * @memberOf me.ParticleEmitter
-     * @function
-     * @return {Number}
+     * returns a random point on the y axis within the bounds this emitter
+     * @returns {number}
      */
     getRandomPointY() {
-        return this.pos.y + randomFloat(0, this.height);
-    }
-
-    /**
-     * Reset the emitter with default values.<br>
-     * @function
-     * @param {Object} settings [optional] object with emitter settings. See {@link me.ParticleEmitterSettings}
-     * @name reset
-     * @memberOf me.ParticleEmitter
-     */
-    reset(settings) {
-        // check if settings exists and create a dummy object if necessary
-        settings = settings || {};
-        var defaults = ParticleEmitterSettings;
-
-        var width = (typeof settings.width === "number") ? settings.width : defaults.width;
-        var height = (typeof settings.height === "number") ? settings.height : defaults.height;
-        this.resize(width, height);
-
-        Object.assign(this, defaults, settings);
-
-        // reset particle container values
-        this.container.reset();
+        return randomFloat(0, this.getBounds().height);
     }
 
     // Add count particles in the game world
     /** @ignore */
     addParticles(count) {
-        for (var i = 0; i < ~~count; i++) {
+        for (let i = 0; i < count; i++) {
             // Add particle to the container
-            var particle = pool.pull("Particle", this);
-            this.container.addChild(particle);
+            this.addChild(pool.pull("Particle", this), this.pos.z);
         }
+        this.isDirty = true;
     }
 
     /**
-     * Emitter is of type stream and is launching particles <br>
-     * @function
-     * @returns {Boolean} Emitter is Stream and is launching particles
-     * @name isRunning
-     * @memberOf me.ParticleEmitter
+     * Emitter is of type stream and is launching particles
+     * @returns {boolean} Emitter is Stream and is launching particles
      */
     isRunning() {
         return this._enabled && this._stream;
     }
 
     /**
-     * Launch particles from emitter constantly <br>
-     * Particles example: Fountains
-     * @param {Number} duration [optional] time that the emitter releases particles in ms
-     * @function
-     * @name streamParticles
-     * @memberOf me.ParticleEmitter
+     * Launch particles from emitter constantly (e.g. for stream)
+     * @param {number} [duration] - time that the emitter releases particles in ms
      */
     streamParticles(duration) {
         this._enabled = true;
         this._stream = true;
-        this.frequency = Math.max(this.frequency, 1);
-        this._durationTimer = (typeof duration === "number") ? duration : this.duration;
+        this.settings.frequency = Math.max(1, this.settings.frequency);
+        this._durationTimer = (typeof duration === "number") ? duration : this.settings.duration;
     }
 
     /**
-     * Stop the emitter from generating new particles (used only if emitter is Stream) <br>
-     * @function
-     * @name stopStream
-     * @memberOf me.ParticleEmitter
+     * Stop the emitter from generating new particles (used only if emitter is Stream)
      */
     stopStream() {
         this._enabled = false;
     }
 
     /**
-     * Launch all particles from emitter and stop <br>
-     * Particles example: Explosions <br>
-     * @param {Number} total [optional] number of particles to launch
-     * @function
-     * @name burstParticles
-     * @memberOf me.ParticleEmitter
+     * Launch all particles from emitter and stop (e.g. for explosion)
+     * @param {number} [total] - number of particles to launch
      */
     burstParticles(total) {
         this._enabled = true;
         this._stream = false;
-        this.addParticles((typeof total === "number") ? total : this.totalParticles);
+        this.addParticles((typeof total === "number") ? total : this.settings.totalParticles);
         this._enabled = false;
     }
 
@@ -536,6 +192,22 @@ class ParticleEmitter extends Renderable {
      * @ignore
      */
     update(dt) {
+        // skip frames if necessary
+        if (++this._updateCount > this.settings.framesToSkip) {
+            this._updateCount = 0;
+        }
+        if (this._updateCount > 0) {
+            this._dt += dt;
+            return this.isDirty;
+        }
+
+        // apply skipped delta time
+        dt += this._dt;
+        this._dt = 0;
+
+        // Update particles
+        this.isDirty |= super.update(dt);
+
         // Launch new particles, if emitter is Stream
         if ((this._enabled) && (this._stream)) {
             // Check if the emitter has duration set
@@ -544,7 +216,7 @@ class ParticleEmitter extends Renderable {
 
                 if (this._durationTimer <= 0) {
                     this.stopStream();
-                    return false;
+                    return this.isDirty;
                 }
             }
 
@@ -552,21 +224,35 @@ class ParticleEmitter extends Renderable {
             this._frequencyTimer += dt;
 
             // Check for new particles launch
-            var particlesCount = this.container.children.length;
-            if ((particlesCount < this.totalParticles) && (this._frequencyTimer >= this.frequency)) {
-                if ((particlesCount + this.maxParticles) <= this.totalParticles) {
-                    this.addParticles(this.maxParticles);
+            const particlesCount = this.children.length;
+            if ((particlesCount < this.settings.totalParticles) && (this._frequencyTimer >= this.settings.frequency)) {
+                if ((particlesCount + this.settings.maxParticles) <= this.settings.totalParticles) {
+                    this.addParticles(this.settings.maxParticles);
                 }
                 else {
-                    this.addParticles(this.totalParticles - particlesCount);
+                    this.addParticles(this.settings.totalParticles - particlesCount);
                 }
-
                 this._frequencyTimer = 0;
+                this.isDirty = true;
             }
         }
-        return true;
+        return this.isDirty;
     }
 
-};
+    /**
+     * Destroy function
+     * @ignore
+     */
+    destroy() {
+        // call the parent destroy method
+        super.destroy(arguments);
+        // clean emitter specific Properties
+        if (typeof this._defaultParticle !== "undefined") {
+            pool.push(this._defaultParticle);
+            this._defaultParticle = undefined;
+        }
+        this.settings.image = undefined;
+        this.settings = undefined;
+    }
+}
 
-export { ParticleEmitterSettings, ParticleEmitter };

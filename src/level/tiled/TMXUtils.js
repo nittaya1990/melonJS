@@ -1,11 +1,23 @@
-import utils from "./../../utils/utils.js";
+import { isBoolean, isNumeric } from "../../utils/string.js";
+
+/**
+ * a collection of utility functions for parsing TMX maps
+ * @namespace TMXUtils
+ */
+
+
+/**
+ * the function used to decompress zlib/gzip data
+ * @ignore
+ */
+let inflateFunction;
 
 /**
  * set and interpret a TMX property value
  * @ignore
  */
 function setTMXValue(name, type, value) {
-    var match;
+    let match;
 
     if (typeof(value) !== "string") {
         // Value is already normalized (e.g. with JSON maps)
@@ -25,11 +37,11 @@ function setTMXValue(name, type, value) {
 
         default :
             // try to parse it anyway
-            if (!value || utils.string.isBoolean(value)) {
+            if (!value || isBoolean(value)) {
                 // if value not defined or boolean
                 value = value ? (value === "true") : true;
             }
-            else if (utils.string.isNumeric(value)) {
+            else if (isNumeric(value)) {
                 // check if numeric
                 value = Number(value);
             }
@@ -48,7 +60,7 @@ function setTMXValue(name, type, value) {
                 match = value.split(/^eval:/i)[1];
                 try {
                     // eslint-disable-next-line
-                    value = eval(match);
+                    value = Function("'use strict';return (" + match + ")")();
                 }
                 catch (e) {
                     throw new Error("Unable to evaluate: " + match);
@@ -76,11 +88,14 @@ function setTMXValue(name, type, value) {
     return value;
 }
 
+/**
+ * @ignore
+ */
 function parseAttributes(obj, elt) {
     // do attributes
     if (elt.attributes && elt.attributes.length > 0) {
-        for (var j = 0; j < elt.attributes.length; j++) {
-            var attribute = elt.attributes.item(j);
+        for (let j = 0; j < elt.attributes.length; j++) {
+            const attribute = elt.attributes.item(j);
             if (typeof(attribute.name) !== "undefined") {
                 // DOM4 (Attr no longer inherit from Node)
                 obj[attribute.name] = attribute.value;
@@ -93,116 +108,53 @@ function parseAttributes(obj, elt) {
 }
 
 /**
- * decompress zlib/gzip data (NOT IMPLEMENTED)
- * @ignore
- * @function
- * @name decompress
- * @param  {Number[]} data Array of bytes
- * @param  {String} format compressed data format ("gzip","zlib")
- * @return {Number[]} Decompressed data
- */
-export function decompress() {
-    throw new Error("GZIP/ZLIB compressed TMX Tile Map not supported!");
-};
-
-/**
- * Decode a CSV encoded array into a binary array
- * @ignore
- * @function
- * @name decodeCSV
- * @param  {String} input CSV formatted data (only numbers, everything else will be converted to NaN)
- * @return {Number[]} Decoded data
- */
-export function decodeCSV(input) {
-    var entries = input.replace("\n", "").trim().split(",");
-
-    var result = [];
-    for (var i = 0; i < entries.length; i++) {
-        result.push(+entries[i]);
-    }
-    return result;
-};
-
-/**
- * Decode a base64 encoded string into a byte array
- * @ignore
- * @function
- * @name decodeBase64AsArray
- * @param {String} input Base64 encoded data
- * @param {Number} [bytes] number of bytes per array entry
- * @return {Uint32Array} Decoded data
- */
-export function decodeBase64AsArray(input, bytes) {
-    bytes = bytes || 1;
-
-    var i, j, len;
-    var dec = window.atob(input.replace(/[^A-Za-z0-9\+\/\=]/g, ""));
-    var ar = new Uint32Array(dec.length / bytes);
-
-    for (i = 0, len = dec.length / bytes; i < len; i++) {
-        ar[i] = 0;
-        for (j = bytes - 1; j >= 0; --j) {
-            ar[i] += dec.charCodeAt((i * bytes) + j) << (j << 3);
-        }
-    }
-    return ar;
-};
-
-/**
-* Decode the given data
-* @ignore
-*/
-export function decode(data, encoding, compression) {
-    compression = compression || "none";
-    encoding = encoding || "none";
-
-    switch (encoding) {
-        case "csv":
-            return decodeCSV(data);
-
-        case "base64":
-            var decoded = decodeBase64AsArray(data, 4);
-            return (
-                (compression === "none") ?
-                decoded :
-                decompress(decoded, compression)
-            );
-
-        case "none":
-            return data;
-
-        case "xml":
-            throw new Error("XML encoding is deprecated, use base64 instead");
-
-        default:
-            throw new Error("Unknown layer encoding: " + encoding);
-    }
-};
-
-/**
  * Normalize TMX format to Tiled JSON format
  * @ignore
  */
-export function normalize(obj, item) {
-    var nodeName = item.nodeName;
+function normalize(obj, item) {
+    let nodeName = item.nodeName;
 
     switch (nodeName) {
         case "data":
-            var data = parse(item);
-            // #956 Support for Infinite map
-            // workaround to prevent the parsing code from crashing
-            data.text = data.text || data.chunk.text;
-            // When no encoding is given, the tiles are stored as individual XML tile elements.
+            var data = parse(item);  // <= "Unexpected lexical declaration in case block" if using let
+
             data.encoding = data.encoding || "xml";
-            obj.data = decode(data.text, data.encoding, data.compression);
-            obj.encoding = "none";
+
+            // decode chunks for infinite maps
+            if (typeof data.chunks !== "undefined") {
+                obj.chunks = obj.chunks || [];
+                // infinite maps containing chunk data
+                data.chunks.forEach((chunk) => {
+                    obj.chunks.push({
+                        x: +chunk.x,
+                        y: +chunk.y,
+                        // chunk width is in tiles
+                        width: +chunk.width,
+                        // chunk height is in tiles
+                        height: +chunk.height,
+                        data: decode(chunk.text, data.encoding, data.compression)
+                    });
+                });
+                obj.encoding = "none";
+            }
+            // Bug on if condition: when parsing data, data.text is sometimes defined when chunks are present
+            if (typeof data.text !== "undefined" && typeof obj.chunks === "undefined") {
+                // Finite maps
+                obj.data = decode(data.text, data.encoding, data.compression);
+                obj.encoding = "none";
+            }
+            break;
+
+        case "chunk":
+            obj.chunks = obj.chunks || [];
+            obj.chunks.push(parse(item));
             break;
 
         case "imagelayer":
         case "layer":
         case "objectgroup":
         case "group":
-            var layer = parse(item);
+            var layer = parse(item); //  // <= "Unexpected lexical declaration in case block" if using let
             layer.type = (nodeName === "layer" ? "tilelayer" : nodeName);
             if (layer.image) {
                 layer.image = layer.image.source;
@@ -218,13 +170,13 @@ export function normalize(obj, item) {
 
         case "frame":
         case "object":
-            var name = nodeName + "s";
+            var name = nodeName + "s";  // <= "Unexpected lexical declaration in case block" if using let
             obj[name] = obj[name] || [];
             obj[name].push(parse(item));
             break;
 
         case "tile":
-            var tile = parse(item);
+            var tile = parse(item);  // <= "Unexpected lexical declaration in case block" if using let
             if (tile.image) {
                 tile.imagewidth = tile.image.width;
                 tile.imageheight = tile.image.height;
@@ -235,7 +187,7 @@ export function normalize(obj, item) {
             break;
 
         case "tileset":
-            var tileset = parse(item);
+            var tileset = parse(item);  // <= "Unexpected lexical declaration in case block" if using let
             if (tileset.image) {
                 tileset.imagewidth = tileset.image.width;
                 tileset.imageheight = tileset.image.height;
@@ -251,11 +203,11 @@ export function normalize(obj, item) {
             obj[nodeName] = [];
 
             // Get a point array
-            var points = parse(item).points.split(" ");
+            var points = parse(item).points.split(" ");  // <= "Unexpected lexical declaration in case block" if using let
 
             // And normalize them into an array of vectors
-            for (var i = 0, v; i < points.length; i++) {
-                v = points[i].split(",");
+            for (let i = 0; i < points.length; i++) {
+                const v = points[i].split(",");
                 obj[nodeName].push({
                     "x" : +v[0],
                     "y" : +v[1]
@@ -269,7 +221,7 @@ export function normalize(obj, item) {
             break;
 
         case "property":
-            var property = parse(item);
+            var property = parse(item);  // <= "Unexpected lexical declaration in case block" if using let
             // for custom properties, text is used
             var value = (typeof property.value !== "undefined") ? property.value : property.text;
 
@@ -285,17 +237,121 @@ export function normalize(obj, item) {
             obj[nodeName] = parse(item);
             break;
     }
-};
+}
+
+
+/**
+ * decompress and decode zlib/gzip data
+ * @name decompress
+ * @memberOf TMXUtils
+ * @param {string} input - Base64 encoded and compressed data
+ * @param {string} format - compressed data format ("gzip","zlib", "zstd")
+ * @returns {Uint32Array} Decoded and decompress data
+ */
+function decompress(data, format) {
+    if (typeof inflateFunction === "function") {
+        return inflateFunction(data, format);
+    } else {
+        throw new Error("GZIP/ZLIB compressed TMX Tile Map not supported!");
+    }
+}
+
+/**
+ * Decode a CSV encoded array into a binary array
+ * @name decodeCSV
+ * @memberOf TMXUtils
+ * @param  {string} input- -  CSV formatted data (only numbers, everything else will be converted to NaN)
+ * @returns {number[]} Decoded data
+ */
+function decodeCSV(input) {
+    let entries = input.replace("\n", "").trim().split(",");
+
+    let result = [];
+    for (let i = 0; i < entries.length; i++) {
+        result.push(+entries[i]);
+    }
+    return result;
+}
+
+/**
+ * Decode a base64 encoded string into a byte array
+ * @name decodeBase64AsArray
+ * @memberOf TMXUtils
+ * @param {string} input - Base64 encoded data
+ * @param {number} [bytes] - number of bytes per array entry
+ * @returns {Uint32Array} Decoded data
+ */
+function decodeBase64AsArray(input, bytes) {
+    bytes = bytes || 1;
+
+    let i, j, len;
+    let dec = globalThis.atob(input.replace(/[^A-Za-z0-9\+\/\=]/g, ""));
+    let ar = new Uint32Array(dec.length / bytes);
+
+    for (i = 0, len = dec.length / bytes; i < len; i++) {
+        ar[i] = 0;
+        for (j = bytes - 1; j >= 0; --j) {
+            ar[i] += dec.charCodeAt((i * bytes) + j) << (j << 3);
+        }
+    }
+    return ar;
+}
+
+/**
+ * set the function used to inflate gzip/zlib data
+ * @param {Func} fn - inflate function
+ */
+export function setInflateFunction(fn) {
+    inflateFunction = fn;
+}
+
+/**
+ * Decode a encoded array into a binary array
+ * @name decodeCSV
+ * @memberOf TMXUtils
+ * @param {string} data - data to be decoded
+ * @param {string} [encoding="none"] - data encoding ("csv", "base64", "xml")
+ * @returns {number[]} Decoded data
+ */
+export function decode(data, encoding, compression) {
+    compression = compression || "none";
+    encoding = encoding || "none";
+
+    switch (encoding) {
+        case "csv":
+            return decodeCSV(data);
+
+        case "base64":
+            if (compression !== "none") {
+                data = decompress(data, compression);
+            } else {
+                data = decodeBase64AsArray(data, 4);
+            }
+            return data;
+
+        case "none":
+            return data;
+
+        case "xml":
+            throw new Error("XML encoding is deprecated, use base64 instead");
+
+        default:
+            throw new Error("Unknown layer encoding: " + encoding);
+    }
+}
 
 /**
  * Parse a XML TMX object and returns the corresponding javascript object
- * @ignore
+ * @name parse
+ * @memberOf TMXUtils
+ * @param {Document} xml - XML TMX object
+ * @returns {object} Javascript object
  */
 export function parse(xml) {
     // Create the return object
-    var obj = {};
+    let obj = {};
 
-    var text = "";
+    let text = "";
 
     if (xml.nodeType === 1) {
         // do attributes
@@ -304,16 +360,15 @@ export function parse(xml) {
 
     // do children
     if (xml.hasChildNodes()) {
-        for (var i = 0; i < xml.childNodes.length; i++) {
-            var item = xml.childNodes.item(i);
-
-            switch (item.nodeType) {
+        let children = xml.childNodes;
+        for (const node of children) {
+            switch (node.nodeType) {
                 case 1:
-                    normalize(obj, item);
+                    normalize(obj, node);
                     break;
 
                 case 3:
-                    text += item.nodeValue.trim();
+                    text += node.nodeValue.trim();
                     break;
             }
         }
@@ -324,21 +379,25 @@ export function parse(xml) {
     }
 
     return obj;
-};
+}
 
 /**
  * Apply TMX Properties to the given object
- * @ignore
+ * @name applyTMXProperties
+ * @memberOf TMXUtils
+ * @param {object} obj - object to apply the properties to
+ * @param {object} data - TMX data object
+ * @returns {object} obj
  */
 export function applyTMXProperties(obj, data) {
-    var properties = data.properties;
-    var types = data.propertytypes;
+    let properties = data.properties;
+    let types = data.propertytypes;
     if (typeof(properties) !== "undefined") {
-        for (var property in properties) {
+        for (let property in properties) {
             if (properties.hasOwnProperty(property)) {
-                var type = "string";
-                var name = property;
-                var value = properties[property];
+                let type = "string";
+                let name = property;
+                let value = properties[property];
                 // proof-check for new and old JSON format
                 if (typeof properties[property].name !== "undefined") {
                     name = properties[property].name;
@@ -356,4 +415,4 @@ export function applyTMXProperties(obj, data) {
             }
         }
     }
-};
+}

@@ -1,17 +1,16 @@
 /**
- * @namespace me.input
- * @memberOf me
+ * @namespace input
  */
 
 /**
  * specify if melonJS should prevent all default browser action on registered events.
  * @public
- * @type Boolean
+ * @type {boolean}
  * @default true
  * @name preventDefault
- * @memberOf me.input
+ * @memberof input
  */
-export var preventDefault = true;
+export let preventDefault = true;
 
 export * from "./pointerevent.js";
 export * from "./keyboard.js";

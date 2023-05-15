@@ -1,43 +1,43 @@
 import {preventDefault as preventDefaultAction} from "./input.js";
 import * as event from "./../system/event.js";
-import device from "./../system/device.js";
+import { isMobile } from "./../system/platform.js";
 
 // corresponding actions
-var _keyStatus = {};
+let _keyStatus = {};
 
 // lock enable flag for keys
-var _keyLock = {};
+let _keyLock = {};
 // actual lock status of each key
-var _keyLocked = {};
+let _keyLocked = {};
 
 // List of binded keys being held
-var _keyRefs = {};
+let _keyRefs = {};
 
 // whether default event should be prevented for a given keypress
-var _preventDefaultForKeys = {};
+let _preventDefaultForKeys = {};
 
 // list of binded keys
-var _keyBindings = {};
+let _keyBindings = {};
 
 /**
  * key down event
  * @ignore
  */
-var keyDownEvent = function (e, keyCode, mouseButton) {
+let keyDownEvent = function (e, keyCode, mouseButton) {
 
     keyCode = keyCode || e.keyCode || e.button;
-    var action = _keyBindings[keyCode];
+    let action = _keyBindings[keyCode];
 
     // publish a message for keydown event
-    event.publish(event.KEYDOWN, [
+    event.emit(event.KEYDOWN,
         action,
         keyCode,
         action ? !_keyLocked[action] : true
-    ]);
+    );
 
     if (action) {
         if (!_keyLocked[action]) {
-            var trigger = (typeof mouseButton !== "undefined") ? mouseButton : keyCode;
+            let trigger = (typeof mouseButton !== "undefined") ? mouseButton : keyCode;
             if (!_keyRefs[action][trigger]) {
                 _keyStatus[action]++;
                 _keyRefs[action][trigger] = true;
@@ -61,15 +61,15 @@ var keyDownEvent = function (e, keyCode, mouseButton) {
  * key up event
  * @ignore
  */
-var keyUpEvent = function (e, keyCode, mouseButton) {
+let keyUpEvent = function (e, keyCode, mouseButton) {
     keyCode = keyCode || e.keyCode || e.button;
-    var action = _keyBindings[keyCode];
+    let action = _keyBindings[keyCode];
 
     // publish a message for keydown event
-    event.publish(event.KEYUP, [ action, keyCode ]);
+    event.emit(event.KEYUP, action, keyCode);
 
     if (action) {
-        var trigger = (typeof mouseButton !== "undefined") ? mouseButton : keyCode;
+        let trigger = (typeof mouseButton !== "undefined") ? mouseButton : keyCode;
         _keyRefs[action][trigger] = undefined;
 
         if (_keyStatus[action] > 0) {
@@ -98,217 +98,216 @@ var keyUpEvent = function (e, keyCode, mouseButton) {
  /**
   * the default target element for keyboard events (usually the window element in which the game is running)
   * @public
-  * @type EventTarget
+  * @type {EventTarget}
   * @name keyBoardEventTarget
-  * @memberOf me.input
+  * @memberof input
   */
- export var keyBoardEventTarget = null;
+ export let keyBoardEventTarget = null;
 
 /**
  * standard keyboard constants
  * @public
  * @enum {number}
  * @namespace KEY
- * @memberOf me.input
+ * @memberof input
  */
-export var KEY = {
-    /** @memberOf me.input.KEY */
+export const KEY = {
     "BACKSPACE" : 8,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "TAB" : 9,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "ENTER" : 13,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "SHIFT" : 16,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "CTRL" : 17,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "ALT" : 18,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "PAUSE" : 19,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "CAPS_LOCK" : 20,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "ESC" : 27,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "SPACE" : 32,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "PAGE_UP" : 33,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "PAGE_DOWN" : 34,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "END" : 35,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "HOME" : 36,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "LEFT" : 37,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "UP" : 38,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "RIGHT" : 39,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "DOWN" : 40,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "PRINT_SCREEN" : 42,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "INSERT" : 45,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "DELETE" : 46,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM0" : 48,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM1" : 49,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM2" : 50,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM3" : 51,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM4" : 52,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM5" : 53,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM6" : 54,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM7" : 55,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM8" : 56,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM9" : 57,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "A" : 65,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "B" : 66,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "C" : 67,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "D" : 68,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "E" : 69,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F" : 70,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "G" : 71,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "H" : 72,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "I" : 73,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "J" : 74,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "K" : 75,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "L" : 76,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "M" : 77,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "N" : 78,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "O" : 79,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "P" : 80,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "Q" : 81,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "R" : 82,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "S" : 83,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "T" : 84,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "U" : 85,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "V" : 86,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "W" : 87,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "X" : 88,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "Y" : 89,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "Z" : 90,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "WINDOW_KEY" : 91,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD0" : 96,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD1" : 97,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD2" : 98,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD3" : 99,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD4" : 100,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD5" : 101,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD6" : 102,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD7" : 103,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD8" : 104,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUMPAD9" : 105,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "MULTIPLY" : 106,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "ADD" : 107,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "SUBSTRACT" : 109,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "DECIMAL" : 110,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "DIVIDE" : 111,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F1" : 112,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F2" : 113,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F3" : 114,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F4" : 115,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F5" : 116,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F6" : 117,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F7" : 118,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F8" : 119,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F9" : 120,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F10" : 121,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F11" : 122,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "F12" : 123,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "TILDE" : 126,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "NUM_LOCK" : 144,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "SCROLL_LOCK" : 145,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "SEMICOLON" : 186,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "PLUS" : 187,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "COMMA" : 188,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "MINUS" : 189,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "PERIOD" : 190,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "FORWAND_SLASH" : 191,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "GRAVE_ACCENT" : 192,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "OPEN_BRACKET" : 219,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "BACK_SLASH" : 220,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "CLOSE_BRACKET" : 221,
-    /** @memberOf me.input.KEY */
+    /** @memberof input.KEY */
     "SINGLE_QUOTE" : 222
 };
 
@@ -318,31 +317,29 @@ export var KEY = {
  */
 export function initKeyboardEvent() {
     // make sure the keyboard is enable
-    if (keyBoardEventTarget === null && device.isMobile === false) {
-        keyBoardEventTarget = window;
-        keyBoardEventTarget.addEventListener("keydown", keyDownEvent, false);
-        keyBoardEventTarget.addEventListener("keyup", keyUpEvent, false);
+    if (keyBoardEventTarget === null && isMobile === false) {
+        keyBoardEventTarget = globalThis;
+        if (typeof keyBoardEventTarget.addEventListener === "function") {
+            keyBoardEventTarget.addEventListener("keydown", keyDownEvent, false);
+            keyBoardEventTarget.addEventListener("keyup", keyUpEvent, false);
+        }
     }
-};
+}
 
 /**
  * return the key press status of the specified action
  * @name isKeyPressed
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {String} action user defined corresponding action
- * @return {Boolean} true if pressed
+ * @param {string} action - user defined corresponding action
+ * @returns {boolean} true if pressed
  * @example
- * if (me.input.isKeyPressed('left'))
- * {
+ * if (me.input.isKeyPressed('left')) {
  *    //do something
  * }
- * else if (me.input.isKeyPressed('right'))
- * {
+ * else if (me.input.isKeyPressed('right')) {
  *    //do something else...
  * }
- *
  */
 export function isKeyPressed(action) {
     if (_keyStatus[action] && !_keyLocked[action]) {
@@ -352,30 +349,29 @@ export function isKeyPressed(action) {
         return true;
     }
     return false;
-};
+}
 
 /**
  * return the key status of the specified action
  * @name keyStatus
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {String} action user defined corresponding action
- * @return {Boolean} down (true) or up(false)
+ * @param {string} action - user defined corresponding action
+ * @returns {boolean} down (true) or up(false)
  */
 export function keyStatus(action) {
     return (_keyStatus[action] > 0);
-};
+}
 
 
 /**
  * trigger the specified key (simulated) event <br>
  * @name triggerKeyEvent
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {me.input.KEY} keycode
- * @param {Boolean} [status=false] true to trigger a key down event, or false for key up event
+ * @param {number} keycode - (See {@link input.KEY})
+ * @param {boolean} [status=false] - true to trigger a key down event, or false for key up event
+ * @param {number} [mouseButton] - the mouse button to trigger
  * @example
  * // trigger a key press
  * me.input.triggerKeyEvent(me.input.KEY.LEFT, true);
@@ -387,19 +383,18 @@ export function triggerKeyEvent(keycode, status, mouseButton) {
     else {
         keyUpEvent({}, keycode, mouseButton);
     }
-};
+}
 
 
 /**
  * associate a user defined action to a keycode
  * @name bindKey
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {me.input.KEY} keycode
- * @param {String} action user defined corresponding action
- * @param {Boolean} [lock=false] cancel the keypress event once read
- * @param {Boolean} [preventDefault=me.input.preventDefault] prevent default browser action
+ * @param {number} keycode - (See {@link input.KEY})
+ * @param {string} action - user defined corresponding action
+ * @param {boolean} [lock=false] - cancel the keypress event once read
+ * @param {boolean} [preventDefault=input.preventDefault] - prevent default browser action
  * @example
  * // enable the keyboard
  * me.input.bindKey(me.input.KEY.LEFT,  "left");
@@ -415,28 +410,26 @@ export function bindKey(keycode, action, lock, preventDefault = preventDefaultAc
     _keyLock[action] = lock ? lock : false;
     _keyLocked[action] = false;
     _keyRefs[action] = {};
-};
+}
 
 /**
  * return the action associated with the given keycode
  * @name getBindingKey
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {me.input.KEY} keycode
- * @return {String} user defined associated action
+ * @param {number} keycode - (See {@link input.KEY})
+ * @returns {string} user defined associated action
  */
 export function getBindingKey(keycode) {
     return _keyBindings[keycode];
-};
+}
 
 /**
  * unlock a key manually
  * @name unlockKey
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {String} action user defined corresponding action
+ * @param {string} action - user defined corresponding action
  * @example
  * // Unlock jump when touching the ground
  * if (!this.falling && !this.jumping) {
@@ -445,25 +438,24 @@ export function getBindingKey(keycode) {
  */
 export function unlockKey(action) {
     _keyLocked[action] = false;
-};
+}
 
 /**
  * unbind the defined keycode
  * @name unbindKey
- * @memberOf me.input
+ * @memberof input
  * @public
- * @function
- * @param {me.input.KEY} keycode
+ * @param {number} keycode - (See {@link input.KEY})
  * @example
  * me.input.unbindKey(me.input.KEY.LEFT);
  */
 export function unbindKey(keycode) {
     // clear the event status
-    var keybinding = _keyBindings[keycode];
+    let keybinding = _keyBindings[keycode];
     _keyStatus[keybinding] = 0;
     _keyLock[keybinding] = false;
     _keyRefs[keybinding] = {};
     // remove the key binding
     _keyBindings[keycode] = null;
     _preventDefaultForKeys[keycode] = null;
-};
+}

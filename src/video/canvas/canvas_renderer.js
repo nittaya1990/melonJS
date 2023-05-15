@@ -1,48 +1,36 @@
 import Color from "./../../math/color.js";
 import Renderer from "./../renderer.js";
-import TextureCache from "./../texture_cache.js";
-import Ellipse from "./../../shapes/ellipse.js";
-import { createCanvas } from "./../video.js";
-
-
+import TextureCache from "./../texture/cache.js";
+import Ellipse from "./../../geometries/ellipse.js";
+import RoundRect from "./../../geometries/roundrect.js";
+import Rect from "./../../geometries/rectangle.js";
+import Bounds from "./../../physics/bounds.js";
+import * as event from "./../../system/event.js";
 
 /**
  * @classdesc
  * a canvas renderer object
- * @class CanvasRenderer
- * @extends me.Renderer
- * @memberOf me
- * @constructor
- * @param {Object} options The renderer parameters
- * @param {Number} options.width The width of the canvas without scaling
- * @param {Number} options.height The height of the canvas without scaling
- * @param {HTMLCanvasElement} [options.canvas] The html canvas to draw to on screen
- * @param {Boolean} [options.doubleBuffering=false] Whether to enable double buffering
- * @param {Boolean} [options.antiAlias=false] Whether to enable anti-aliasing
- * @param {Boolean} [options.transparent=false] Whether to enable transparency on the canvas (performance hit when enabled)
- * @param {Boolean} [options.subPixel=false] Whether to enable subpixel renderering (performance hit when enabled)
- * @param {Boolean} [options.textureSeamFix=true] enable the texture seam fix when rendering Tile when antiAlias is off for the canvasRenderer
- * @param {Number} [options.zoomX=width] The actual width of the canvas with scaling applied
- * @param {Number} [options.zoomY=height] The actual height of the canvas with scaling applied
+ * @augments Renderer
  */
-class CanvasRenderer extends Renderer {
-
+ export default class CanvasRenderer extends Renderer {
+    /**
+     * @param {object} options - The renderer parameters
+     * @param {number} options.width - The width of the canvas without scaling
+     * @param {number} options.height - The height of the canvas without scaling
+     * @param {HTMLCanvasElement} [options.canvas] - The html canvas to draw to on screen
+     * @param {boolean} [options.antiAlias=false] - Whether to enable anti-aliasing
+     * @param {boolean} [options.transparent=false] - Whether to enable transparency on the canvas (performance hit when enabled)
+     * @param {boolean} [options.subPixel=false] - Whether to enable subpixel renderering (performance hit when enabled)
+     * @param {boolean} [options.textureSeamFix=true] - enable the texture seam fix when rendering Tile when antiAlias is off for the canvasRenderer
+     * @param {number} [options.zoomX=width] - The actual width of the canvas with scaling applied
+     * @param {number} [options.zoomY=height] - The actual height of the canvas with scaling applied
+     */
     constructor(options) {
         // parent constructor
         super(options);
 
         // defined the 2d context
-        this.context = this.getContext2d(this.getScreenCanvas(), this.settings.transparent);
-
-        // create the back buffer if we use double buffering
-        if (this.settings.doubleBuffering) {
-            this.backBufferCanvas = createCanvas(this.settings.width, this.settings.height, true);
-            this.backBufferContext2D = this.getContext2d(this.backBufferCanvas);
-        }
-        else {
-            this.backBufferCanvas = this.getScreenCanvas();
-            this.backBufferContext2D = this.context;
-        }
+        this.context = this.getContext2d(this.getCanvas(), this.settings.transparent);
 
         this.setBlendMode(this.settings.blendMode);
 
@@ -57,14 +45,29 @@ class CanvasRenderer extends Renderer {
             this.uvOffset = 1;
         }
 
-        return this;
+        // set the renderer type
+        this.type = "CANVAS";
+
+        // context lost & restore event for canvas
+        this.getCanvas().addEventListener("contextlost", (e) => {
+            e.preventDefault();
+            this.isContextValid = false;
+            event.emit(event.ONCONTEXT_LOST, this);
+        }, false );
+        // ctx.restoreContext()
+        this.getCanvas().addEventListener("contextrestored", () => {
+            this.isContextValid = true;
+            event.emit(event.ONCONTEXT_RESTORED, this);
+        }, false );
+
+        // reset the renderer on game reset
+        event.on(event.GAME_RESET, () => {
+            this.reset();
+        });
     }
 
     /**
      * Reset context state
-     * @name reset
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
      */
     reset() {
         super.reset();
@@ -73,26 +76,39 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Reset the canvas transform to identity
-     * @name resetTransform
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
      */
     resetTransform() {
-        this.backBufferContext2D.setTransform(1, 0, 0, 1, 0, 0);
+        this.getContext().setTransform(1, 0, 0, 1, 0, 0);
     }
 
     /**
-     * Set a blend mode for the given context
-     * @name setBlendMode
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {String} [mode="normal"] blend mode : "normal", "multiply"
-     * @param {Context2d} [context]
+     * set a blend mode for the given context. <br>
+     * Supported blend mode between Canvas and WebGL remderer : <br>
+     * - "normal" : this is the default mode and draws new content on top of the existing content <br>
+     * <img src="images/normal-blendmode.png" width="510"/> <br>
+     * - "multiply" : the pixels of the top layer are multiplied with the corresponding pixel of the bottom layer. A darker picture is the result. <br>
+     * <img src="images/multiply-blendmode.png" width="510"/> <br>
+     * - "additive or lighter" : where both content overlap the color is determined by adding color values. <br>
+     * <img src="images/lighter-blendmode.png" width="510"/> <br>
+     * - "screen" : The pixels are inverted, multiplied, and inverted again. A lighter picture is the result (opposite of multiply) <br>
+     * <img src="images/screen-blendmode.png" width="510"/> <br>
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation
+     * @param {string} [mode="normal"] - blend mode : "normal", "multiply", "lighter, "additive", "screen"
+     * @param {CanvasRenderingContext2D} [context]
      */
-    setBlendMode(mode, context) {
+    setBlendMode(mode = "normal", context) {
         context = context || this.getContext();
         this.currentBlendMode = mode;
         switch (mode) {
+            case "screen" :
+                context.globalCompositeOperation = "screen";
+                break;
+
+            case "lighter" :
+            case "additive" :
+                context.globalCompositeOperation = "lighter";
+                break;
+
             case "multiply" :
                 context.globalCompositeOperation = "multiply";
                 break;
@@ -102,102 +118,75 @@ class CanvasRenderer extends Renderer {
                 this.currentBlendMode = "normal";
                 break;
         }
-
-        // transparent setting will override the given blendmode for this.context
-        if (this.settings.doubleBuffering && this.settings.transparent) {
-            // Clears the front buffer for each frame blit
-            this.context.globalCompositeOperation = "copy";
-        }
     }
 
     /**
      * prepare the framebuffer for drawing a new frame
-     * @name clear
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
      */
     clear() {
-        if (this.settings.transparent) {
-            this.clearColor("rgba(0,0,0,0)", true);
-        }
-    }
-
-    /**
-     * render the main framebuffer on screen
-     * @name flush
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     */
-    flush() {
-        if (this.settings.doubleBuffering) {
-            this.context.drawImage(this.backBufferCanvas, 0, 0);
+        if (this.settings.transparent === false) {
+            let canvas = this.getCanvas();
+            let context = this.getContext();
+            context.clearRect(0, 0, canvas.width, canvas.height);
         }
     }
 
     /**
      * Clears the main framebuffer with the given color
-     * @name clearColor
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {me.Color|String} color CSS color.
-     * @param {Boolean} [opaque=false] Allow transparency [default] or clear the surface completely [true]
+     * @param {Color|string} [color="#000000"] - CSS color.
+     * @param {boolean} [opaque=false] - Allow transparency [default] or clear the surface completely [true]
      */
-    clearColor(col, opaque) {
+    clearColor(color = "#000000", opaque = false) {
+        let canvas = this.getCanvas();
+        let context = this.getContext();
+
         this.save();
         this.resetTransform();
-        this.backBufferContext2D.globalCompositeOperation = opaque ? "copy" : "source-over";
-        this.backBufferContext2D.fillStyle = (col instanceof Color) ? col.toRGBA() : col;
-        this.fillRect(0, 0, this.backBufferCanvas.width, this.backBufferCanvas.height);
+        context.globalAlpha = 1;
+        context.globalCompositeOperation = opaque === true ? "copy" : "source-over";
+        context.fillStyle = (color instanceof Color) ? color.toRGBA() : color;
+        this.fillRect(0, 0, canvas.width, canvas.height);
         this.restore();
     }
 
     /**
      * Erase the pixels in the given rectangular area by setting them to transparent black (rgba(0,0,0,0)).
-     * @name clearRect
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x x axis of the coordinate for the rectangle starting point.
-     * @param {Number} y y axis of the coordinate for the rectangle starting point.
-     * @param {Number} width The rectangle's width.
-     * @param {Number} height The rectangle's height.
+     * @param {number} x - x axis of the coordinate for the rectangle starting point.
+     * @param {number} y - y axis of the coordinate for the rectangle starting point.
+     * @param {number} width - The rectangle's width.
+     * @param {number} height - The rectangle's height.
      */
     clearRect(x, y, width, height) {
-        this.backBufferContext2D.clearRect(x, y, width, height);
+        this.getContext().clearRect(x, y, width, height);
     }
 
     /**
      * Create a pattern with the specified repetition
-     * @name createPattern
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {image} image Source image
-     * @param {String} repeat Define how the pattern should be repeated
-     * @return {CanvasPattern}
-     * @see me.ImageLayer#repeat
+     * @param {HTMLImageElement|SVGImageElement|HTMLVideoElement|HTMLCanvasElement|ImageBitmap|OffscreenCanvas|VideoFrame} image - Source image to be used as the pattern's image
+     * @param {string} repeat - Define how the pattern should be repeated
+     * @returns {CanvasPattern}
+     * @see ImageLayer#repeat
      * @example
-     * var tileable   = renderer.createPattern(image, "repeat");
-     * var horizontal = renderer.createPattern(image, "repeat-x");
-     * var vertical   = renderer.createPattern(image, "repeat-y");
-     * var basic      = renderer.createPattern(image, "no-repeat");
+     * let tileable   = renderer.createPattern(image, "repeat");
+     * let horizontal = renderer.createPattern(image, "repeat-x");
+     * let vertical   = renderer.createPattern(image, "repeat-y");
+     * let basic      = renderer.createPattern(image, "no-repeat");
      */
     createPattern(image, repeat) {
-        return this.backBufferContext2D.createPattern(image, repeat);
+        return this.getContext().createPattern(image, repeat);
     }
 
     /**
      * Draw an image onto the main using the canvas api
-     * @name drawImage
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Image} image An element to draw into the context. The specification permits any canvas image source (CanvasImageSource), specifically, a CSSImageValue, an HTMLImageElement, an SVGImageElement, an HTMLVideoElement, an HTMLCanvasElement, an ImageBitmap, or an OffscreenCanvas.
-     * @param {Number} sx The X coordinate of the top left corner of the sub-rectangle of the source image to draw into the destination context.
-     * @param {Number} sy The Y coordinate of the top left corner of the sub-rectangle of the source image to draw into the destination context.
-     * @param {Number} sw The width of the sub-rectangle of the source image to draw into the destination context. If not specified, the entire rectangle from the coordinates specified by sx and sy to the bottom-right corner of the image is used.
-     * @param {Number} sh The height of the sub-rectangle of the source image to draw into the destination context.
-     * @param {Number} dx The X coordinate in the destination canvas at which to place the top-left corner of the source image.
-     * @param {Number} dy The Y coordinate in the destination canvas at which to place the top-left corner of the source image.
-     * @param {Number} dWidth The width to draw the image in the destination canvas. This allows scaling of the drawn image. If not specified, the image is not scaled in width when drawn.
-     * @param {Number} dHeight The height to draw the image in the destination canvas. This allows scaling of the drawn image. If not specified, the image is not scaled in height when drawn.
+     * @param {HTMLImageElement|SVGImageElement|HTMLVideoElement|HTMLCanvasElement|ImageBitmap|OffscreenCanvas|VideoFrame} image - An element to draw into the context.
+     * @param {number} sx - The X coordinate of the top left corner of the sub-rectangle of the source image to draw into the destination context.
+     * @param {number} sy - The Y coordinate of the top left corner of the sub-rectangle of the source image to draw into the destination context.
+     * @param {number} sw - The width of the sub-rectangle of the source image to draw into the destination context. If not specified, the entire rectangle from the coordinates specified by sx and sy to the bottom-right corner of the image is used.
+     * @param {number} sh - The height of the sub-rectangle of the source image to draw into the destination context.
+     * @param {number} dx - The X coordinate in the destination canvas at which to place the top-left corner of the source image.
+     * @param {number} dy - The Y coordinate in the destination canvas at which to place the top-left corner of the source image.
+     * @param {number} dw - The width to draw the image in the destination canvas. This allows scaling of the drawn image. If not specified, the image is not scaled in width when drawn.
+     * @param {number} dh - The height to draw the image in the destination canvas. This allows scaling of the drawn image. If not specified, the image is not scaled in height when drawn.
      * @example
      * // Position the image on the canvas:
      * renderer.drawImage(image, dx, dy);
@@ -207,10 +196,11 @@ class CanvasRenderer extends Renderer {
      * renderer.drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
      */
     drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh) {
-        if (this.backBufferContext2D.globalAlpha < 1 / 255) {
+        if (this.getGlobalAlpha() < 1 / 255) {
             // Fast path: don't draw fully transparent
             return;
         }
+        let context = this.getContext();
 
         if (typeof sw === "undefined") {
             sw = dw = image.width;
@@ -238,58 +228,53 @@ class CanvasRenderer extends Renderer {
         }
 
         // apply a tint if required
-        var source = image;
-        var tint = this.currentTint.toArray();
+        let source = image;
+        let tint = this.currentTint.toArray();
         if (tint[0] !== 1.0 || tint[1] !== 1.0 || tint[2] !== 1.0) {
             // get a tinted version of this image from the texture cache
             source = this.cache.tint(image, this.currentTint.toRGB());
         }
-        this.backBufferContext2D.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
+        context.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
     }
 
     /**
      * Draw a pattern within the given rectangle.
-     * @name drawPattern
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {CanvasPattern} pattern Pattern object
-     * @param {Number} x
-     * @param {Number} y
-     * @param {Number} width
-     * @param {Number} height
-     * @see me.CanvasRenderer#createPattern
+     * @param {CanvasPattern} pattern - Pattern object
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     * @see CanvasRenderer#createPattern
      */
     drawPattern(pattern, x, y, width, height) {
-        if (this.backBufferContext2D.globalAlpha < 1 / 255) {
+        if (this.getGlobalAlpha() < 1 / 255) {
             // Fast path: don't draw fully transparent
             return;
         }
-        var fillStyle = this.backBufferContext2D.fillStyle;
-        this.backBufferContext2D.fillStyle = pattern;
-        this.backBufferContext2D.fillRect(x, y, width, height);
-        this.backBufferContext2D.fillStyle = fillStyle;
+        let context = this.getContext();
+        let fillStyle = context.fillStyle;
+        context.fillStyle = pattern;
+        context.fillRect(x, y, width, height);
+        context.fillStyle = fillStyle;
     }
 
     /**
      * Stroke an arc at the specified coordinates with given radius, start and end points
-     * @name strokeArc
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x arc center point x-axis
-     * @param {Number} y arc center point y-axis
-     * @param {Number} radius
-     * @param {Number} start start angle in radians
-     * @param {Number} end end angle in radians
-     * @param {Boolean} [antiClockwise=false] draw arc anti-clockwise
-     * @param {Boolean} [fill=false] also fill the shape with the current color if true
+     * @param {number} x - arc center point x-axis
+     * @param {number} y - arc center point y-axis
+     * @param {number} radius
+     * @param {number} start - start angle in radians
+     * @param {number} end - end angle in radians
+     * @param {boolean} [antiClockwise=false] - draw arc anti-clockwise
+     * @param {boolean} [fill=false] - also fill the shape with the current color if true
      */
     strokeArc(x, y, radius, start, end, antiClockwise, fill = false) {
-        var context = this.backBufferContext2D;
-
-        if (context.globalAlpha < 1 / 255) {
+        if (this.getGlobalAlpha() < 1 / 255) {
             // Fast path: don't draw fully transparent
             return;
         }
+        let context = this.getContext();
+
         context.translate(x, y);
         context.beginPath();
         context.arc(0, 0, radius, start, end, antiClockwise || false);
@@ -299,15 +284,12 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Fill an arc at the specified coordinates with given radius, start and end points
-     * @name fillArc
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x arc center point x-axis
-     * @param {Number} y arc center point y-axis
-     * @param {Number} radius
-     * @param {Number} start start angle in radians
-     * @param {Number} end end angle in radians
-     * @param {Boolean} [antiClockwise=false] draw arc anti-clockwise
+     * @param {number} x - arc center point x-axis
+     * @param {number} y - arc center point y-axis
+     * @param {number} radius
+     * @param {number} start - start angle in radians
+     * @param {number} end - end angle in radians
+     * @param {boolean} [antiClockwise=false] - draw arc anti-clockwise
      */
     fillArc(x, y, radius, start, end, antiClockwise) {
         this.strokeArc(x, y, radius, start, end, antiClockwise || false, true);
@@ -315,31 +297,27 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Stroke an ellipse at the specified coordinates with given radius
-     * @name strokeEllipse
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x ellipse center point x-axis
-     * @param {Number} y ellipse center point y-axis
-     * @param {Number} w horizontal radius of the ellipse
-     * @param {Number} h vertical radius of the ellipse
-     * @param {Boolean} [fill=false] also fill the shape with the current color if true
+     * @param {number} x - ellipse center point x-axis
+     * @param {number} y - ellipse center point y-axis
+     * @param {number} w - horizontal radius of the ellipse
+     * @param {number} h - vertical radius of the ellipse
+     * @param {boolean} [fill=false] - also fill the shape with the current color if true
      */
     strokeEllipse(x, y, w, h, fill = false) {
-        var context = this.backBufferContext2D;
-
-        if (context.globalAlpha < 1 / 255) {
+        if (this.getGlobalAlpha() < 1 / 255) {
             // Fast path: don't draw fully transparent
             return;
         }
+        let context = this.getContext();
 
-        var hw = w,
+        let hw = w,
             hh = h,
             lx = x - hw,
             rx = x + hw,
             ty = y - hh,
             by = y + hh;
 
-        var xmagic = hw * 0.551784,
+        let xmagic = hw * 0.551784,
             ymagic = hh * 0.551784,
             xmin = x - xmagic,
             xmax = x + xmagic,
@@ -358,13 +336,10 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Fill an ellipse at the specified coordinates with given radius
-     * @name fillEllipse
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x ellipse center point x-axis
-     * @param {Number} y ellipse center point y-axis
-     * @param {Number} w horizontal radius of the ellipse
-     * @param {Number} h vertical radius of the ellipse
+     * @param {number} x - ellipse center point x-axis
+     * @param {number} y - ellipse center point y-axis
+     * @param {number} w - horizontal radius of the ellipse
+     * @param {number} h - vertical radius of the ellipse
      */
     fillEllipse(x, y, w, h) {
         this.strokeEllipse(x, y, w, h, true);
@@ -372,21 +347,18 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Stroke a line of the given two points
-     * @name strokeLine
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} startX the start x coordinate
-     * @param {Number} startY the start y coordinate
-     * @param {Number} endX the end x coordinate
-     * @param {Number} endY the end y coordinate
+     * @param {number} startX - the start x coordinate
+     * @param {number} startY - the start y coordinate
+     * @param {number} endX - the end x coordinate
+     * @param {number} endY - the end y coordinate
      */
     strokeLine(startX, startY, endX, endY) {
-        var context = this.backBufferContext2D;
-
-        if (context < 1 / 255) {
+        if (this.getGlobalAlpha() < 1 / 255) {
             // Fast path: don't draw fully transparent
             return;
         }
+
+        let context = this.getContext();
 
         context.beginPath();
         context.moveTo(startX, startY);
@@ -396,13 +368,10 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Fill a line of the given two points
-     * @name fillLine
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} startX the start x coordinate
-     * @param {Number} startY the start y coordinate
-     * @param {Number} endX the end x coordinate
-     * @param {Number} endY the end y coordinate
+     * @param {number} startX - the start x coordinate
+     * @param {number} startY - the start y coordinate
+     * @param {number} endX - the end x coordinate
+     * @param {number} endY - the end y coordinate
      */
     fillLine(startX, startY, endX, endY) {
         this.strokeLine(startX, startY, endX, endY);
@@ -410,26 +379,21 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Stroke the given me.Polygon on the screen
-     * @name strokePolygon
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {me.Polygon} poly the shape to draw
-     * @param {Boolean} [fill=false] also fill the shape with the current color if true
+     * @param {Polygon} poly - the shape to draw
+     * @param {boolean} [fill=false] - also fill the shape with the current color if true
      */
     strokePolygon(poly, fill = false) {
-        var context = this.backBufferContext2D;
-
-        if (context.globalAlpha < 1 / 255) {
+        if (this.getGlobalAlpha() < 1 / 255) {
             // Fast path: don't draw fully transparent
             return;
         }
+        let context = this.getContext();
 
         this.translate(poly.pos.x, poly.pos.y);
         context.beginPath();
         context.moveTo(poly.points[0].x, poly.points[0].y);
-        var point;
-        for (var i = 1; i < poly.points.length; i++) {
-            point = poly.points[i];
+        for (let i = 1; i < poly.points.length; i++) {
+            const point = poly.points[i];
             context.lineTo(point.x, point.y);
         }
         context.lineTo(poly.points[0].x, poly.points[0].y);
@@ -440,10 +404,7 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Fill the given me.Polygon on the screen
-     * @name fillPolygon
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {me.Polygon} poly the shape to draw
+     * @param {Polygon} poly - the shape to draw
      */
     fillPolygon(poly) {
         this.strokePolygon(poly, true);
@@ -451,125 +412,131 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Stroke a rectangle at the specified coordinates
-     * @name strokeRect
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x
-     * @param {Number} y
-     * @param {Number} width
-     * @param {Number} height
-     * @param {Boolean} [fill=false] also fill the shape with the current color if true
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     * @param {boolean} [fill=false] - also fill the shape with the current color if true
      */
     strokeRect(x, y, width, height, fill = false) {
-        if (fill === true ) {
-            this.fillRect(x, y, width, height);
-        } else {
-            if (this.backBufferContext2D.globalAlpha < 1 / 255) {
-                // Fast path: don't draw fully transparent
-                return;
-            }
-            this.backBufferContext2D.strokeRect(x, y, width, height);
+        if (this.getGlobalAlpha() < 1 / 255) {
+            // Fast path: don't draw fully transparent
+            return;
         }
+        let context = this.getContext();
+
+        context[fill === true ? "fillRect" : "strokeRect"](x, y, width, height);
     }
 
     /**
      * Draw a filled rectangle at the specified coordinates
-     * @name fillRect
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x
-     * @param {Number} y
-     * @param {Number} width
-     * @param {Number} height
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
      */
     fillRect(x, y, width, height) {
-        if (this.backBufferContext2D.globalAlpha < 1 / 255) {
+        this.strokeRect(x, y, width, height, true);
+    }
+
+    /**
+     * Stroke a rounded rectangle at the specified coordinates
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     * @param {number} radius
+     * @param {boolean} [fill=false] - also fill the shape with the current color if true
+     */
+    strokeRoundRect(x, y, width, height, radius, fill = false) {
+        if (this.getGlobalAlpha() < 1 / 255) {
             // Fast path: don't draw fully transparent
             return;
         }
-        this.backBufferContext2D.fillRect(x, y, width, height);
-    }
+        let context = this.getContext();
 
-
-    /**
-     * return a reference to the system 2d Context
-     * @name getContext
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @return {CanvasRenderingContext2D}
-     */
-    getContext() {
-        return this.backBufferContext2D;
+        context.beginPath();
+        context.roundRect(x, y, width, height, radius);
+        context[fill === true ? "fill" : "stroke"]();
     }
 
     /**
-     * return a reference to the font 2d Context
-     * @ignore
+     * Draw a rounded filled rectangle at the specified coordinates
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     * @param {number} radius
      */
-    getFontContext() {
-        // in canvas mode we can directly use the 2d context
-        return this.getContext();
+    fillRoundRect(x, y, width, height, radius) {
+        this.strokeRoundRect(x, y, width, height, radius, true);
+    }
+
+    /**
+     * Stroke a Point at the specified coordinates
+     * @param {number} x
+     * @param {number} y
+     */
+    strokePoint(x, y) {
+        this.strokeLine(x, y, x + 1, y + 1);
+    }
+
+    /**
+     * Draw a a point at the specified coordinates
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     */
+    fillPoint(x, y) {
+        this.strokePoint(x, y);
     }
 
     /**
      * save the canvas context
-     * @name save
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
      */
     save() {
-        this.backBufferContext2D.save();
+        this.getContext().save();
     }
 
     /**
      * restores the canvas context
-     * @name restore
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
      */
     restore() {
-        this.backBufferContext2D.restore();
-        this.currentColor.glArray[3] = this.backBufferContext2D.globalAlpha;
+        this.getContext().restore();
+        this.currentColor.glArray[3] = this.getGlobalAlpha();
         this.currentScissor[0] = 0;
         this.currentScissor[1] = 0;
-        this.currentScissor[2] = this.backBufferCanvas.width;
-        this.currentScissor[3] = this.backBufferCanvas.height;
+        this.currentScissor[2] = this.getCanvas().width;
+        this.currentScissor[3] = this.getCanvas().height;
     }
 
     /**
      * rotates the canvas context
-     * @name rotate
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} angle in radians
+     * @param {number} angle - in radians
      */
     rotate(angle) {
-        this.backBufferContext2D.rotate(angle);
+        this.getContext().rotate(angle);
     }
 
     /**
      * scales the canvas context
-     * @name scale
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x
-     * @param {Number} y
+     * @param {number} x
+     * @param {number} y
      */
     scale(x, y) {
-        this.backBufferContext2D.scale(x, y);
+        this.getContext().scale(x, y);
     }
 
     /**
      * Set the current fill & stroke style color.
      * By default, or upon reset, the value is set to #000000.
-     * @name setColor
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Color|String} color css color value
+     * @param {Color|string} color - css color value
      */
     setColor(color) {
-        this.backBufferContext2D.strokeStyle =
-        this.backBufferContext2D.fillStyle = (
+        let context = this.getContext();
+        context.strokeStyle =
+        context.fillStyle = (
             color instanceof Color ?
             color.toRGBA() :
             color
@@ -577,34 +544,33 @@ class CanvasRenderer extends Renderer {
     }
 
     /**
-     * Set the global alpha on the canvas context
-     * @name setGlobalAlpha
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} alpha 0.0 to 1.0 values accepted.
+     * Set the global alpha
+     * @param {number} alpha - 0.0 to 1.0 values accepted.
      */
-    setGlobalAlpha(a) {
-        this.backBufferContext2D.globalAlpha = this.currentColor.glArray[3] = a;
+    setGlobalAlpha(alpha) {
+        this.getContext().globalAlpha = this.currentColor.glArray[3] = alpha;
+    }
+
+    /**
+     * Return the global alpha
+     * @returns {number} global alpha value
+     */
+    getGlobalAlpha() {
+        return this.getContext().globalAlpha;
     }
 
     /**
      * Set the line width on the context
-     * @name setLineWidth
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} width Line width
+     * @param {number} width - Line width
      */
     setLineWidth(width) {
-        this.backBufferContext2D.lineWidth = width;
+        this.getContext().lineWidth = width;
     }
 
     /**
      * Reset (overrides) the renderer transformation matrix to the
      * identity one, and then apply the given transformation matrix.
-     * @name setTransform
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {me.Matrix2d} mat2d Matrix to transform by
+     * @param {Matrix2d} mat2d - Matrix to transform by
      */
     setTransform(mat2d) {
         this.resetTransform();
@@ -613,13 +579,10 @@ class CanvasRenderer extends Renderer {
 
     /**
      * Multiply given matrix into the renderer tranformation matrix
-     * @name transform
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {me.Matrix2d} mat2d Matrix to transform by
+     * @param {Matrix2d} mat2d - Matrix to transform by
      */
     transform(mat2d) {
-        var m = mat2d.toArray(),
+        let m = mat2d.toArray(),
             a = m[0],
             b = m[1],
             c = m[3],
@@ -632,22 +595,19 @@ class CanvasRenderer extends Renderer {
             f |= 0;
         }
 
-        this.backBufferContext2D.transform(a, b, c, d, e, f);
+        this.getContext().transform(a, b, c, d, e, f);
     }
 
     /**
      * Translates the context to the given position
-     * @name translate
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x
-     * @param {Number} y
+     * @param {number} x
+     * @param {number} y
      */
     translate(x, y) {
         if (this.settings.subPixel === false) {
-            this.backBufferContext2D.translate(~~x, ~~y);
+            this.getContext().translate(~~x, ~~y);
         } else {
-            this.backBufferContext2D.translate(x, y);
+            this.getContext().translate(x, y);
         }
     }
 
@@ -657,23 +617,20 @@ class CanvasRenderer extends Renderer {
      * You can however save the current region using the save(),
      * and restore it (with the restore() method) any time in the future.
      * (<u>this is an experimental feature !</u>)
-     * @name clipRect
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {Number} x
-     * @param {Number} y
-     * @param {Number} width
-     * @param {Number} height
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
      */
     clipRect(x, y, width, height) {
-        var canvas = this.backBufferCanvas;
+        let canvas = this.getCanvas();
         // if requested box is different from the current canvas size;
         if (x !== 0 || y !== 0 || width !== canvas.width || height !== canvas.height) {
-            var currentScissor = this.currentScissor;
+            let currentScissor = this.currentScissor;
             // if different from the current scissor box
             if (currentScissor[0] !== x || currentScissor[1] !== y ||
                 currentScissor[2] !== width || currentScissor[3] !== height) {
-                var context = this.backBufferContext2D;
+                let context = this.getContext();
                 context.beginPath();
                 context.rect(x, y, width, height);
                 context.clip();
@@ -690,63 +647,73 @@ class CanvasRenderer extends Renderer {
      * A mask limits rendering elements to the shape and position of the given mask object.
      * So, if the renderable is larger than the mask, only the intersecting part of the renderable will be visible.
      * Mask are not preserved through renderer context save and restore.
-     * @name setMask
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
-     * @param {me.Rect|me.Polygon|me.Line|me.Ellipse} [mask] the shape defining the mask to be applied
+     * @param {Rect|RoundRect|Polygon|Line|Ellipse} [mask] - the shape defining the mask to be applied
+     * @param {boolean} [invert=false] - either the given shape should define what is visible (default) or the opposite
      */
-    setMask(mask) {
-        var context = this.backBufferContext2D;
-        var _x = mask.pos.x, _y = mask.pos.y;
+    setMask(mask, invert = false) {
+        let context = this.getContext();
 
-        context.save();
+        if (this.maskLevel === 0) {
+            // only save context on the first mask
+            context.save();
+            context.beginPath();
+        }
 
         // https://github.com/melonjs/melonJS/issues/648
-        if (mask instanceof Ellipse) {
-            var hw = mask.radiusV.x,
+        if (mask instanceof RoundRect) {
+            context.roundRect(mask.top, mask.left, mask.width, mask.height, mask.radius);
+        } else if (mask instanceof Rect || mask instanceof Bounds) {
+            context.rect(mask.top, mask.left, mask.width, mask.height);
+        } else if (mask instanceof Ellipse) {
+            const _x = mask.pos.x, _y = mask.pos.y,
+                hw = mask.radiusV.x,
                 hh = mask.radiusV.y,
                 lx = _x - hw,
                 rx = _x + hw,
                 ty = _y - hh,
                 by = _y + hh;
 
-            var xmagic = hw * 0.551784,
+            let xmagic = hw * 0.551784,
                 ymagic = hh * 0.551784,
                 xmin = _x - xmagic,
                 xmax = _x + xmagic,
                 ymin = _y - ymagic,
                 ymax = _y + ymagic;
 
-            context.beginPath();
             context.moveTo(_x, ty);
             context.bezierCurveTo(xmax, ty, rx, ymin, rx, _y);
             context.bezierCurveTo(rx, ymax, xmax, by, _x, by);
             context.bezierCurveTo(xmin, by, lx, ymax, lx, _y);
             context.bezierCurveTo(lx, ymin, xmin, ty, _x, ty);
         } else {
-            context.beginPath();
+            // polygon
+            const _x = mask.pos.x, _y = mask.pos.y;
             context.moveTo(_x + mask.points[0].x, _y + mask.points[0].y);
-            var point;
-            for (var i = 1; i < mask.points.length; i++) {
-                point = mask.points[i];
+            for (let i = 1; i < mask.points.length; i++) {
+                const point = mask.points[i];
                 context.lineTo(_x + point.x, _y + point.y);
             }
         }
 
-        context.clip();
+        this.maskLevel++;
+
+        if (invert === true) {
+            context.closePath();
+            context.globalCompositeOperation = "destination-atop";
+            context.fill();
+        } else {
+            context.clip();
+        }
     }
 
     /**
      * disable (remove) the rendering mask set through setMask.
-     * @name clearMask
-     * @see me.CanvasRenderer#setMask
-     * @memberOf me.CanvasRenderer.prototype
-     * @function
+     * @see CanvasRenderer#setMask
      */
     clearMask() {
-        this.backBufferContext2D.restore();
+        if (this.maskLevel > 0) {
+            this.maskLevel = 0;
+            this.getContext().restore();
+        }
     }
-
-};
-
-export default CanvasRenderer;
+}
